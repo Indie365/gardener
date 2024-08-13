@@ -14,6 +14,7 @@ import (
 	metav1validation "k8s.io/apimachinery/pkg/apis/meta/v1/validation"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation/field"
+	"k8s.io/utils/ptr"
 
 	"github.com/gardener/gardener/pkg/apis/core"
 	"github.com/gardener/gardener/pkg/apis/core/helper"
@@ -71,6 +72,7 @@ func ValidateCloudProfileSpec(spec *core.CloudProfileSpec, fldPath *field.Path) 
 	allErrs = append(allErrs, validateMachineTypes(spec.MachineTypes, fldPath.Child("machineTypes"))...)
 	allErrs = append(allErrs, validateVolumeTypes(spec.VolumeTypes, fldPath.Child("volumeTypes"))...)
 	allErrs = append(allErrs, validateRegions(spec.Regions, fldPath.Child("regions"))...)
+	allErrs = append(allErrs, validateBastion(spec, fldPath.Child("bastion"))...)
 	if spec.SeedSelector != nil {
 		allErrs = append(allErrs, metav1validation.ValidateLabelSelector(&spec.SeedSelector.LabelSelector, metav1validation.LabelSelectorValidationOptions{AllowInvalidLabelValueInSelector: true}, fldPath.Child("seedSelector"))...)
 	}
@@ -409,4 +411,100 @@ func validateRegions(regions []core.Region, fldPath *field.Path) field.ErrorList
 	}
 
 	return allErrs
+}
+
+func validateBastion(spec *core.CloudProfileSpec, fldPath *field.Path) field.ErrorList {
+	var (
+		allErrs     field.ErrorList
+		machineArch *string
+	)
+
+	if spec.Bastion == nil {
+		return allErrs
+	}
+
+	if spec.Bastion.MachineType != nil {
+		machineArch, allErrs = validateBastionMachineType(spec.Bastion.MachineType, spec.MachineTypes, machineArch, fldPath.Child("machineType"))
+	}
+
+	if spec.Bastion.MachineImage != nil {
+		allErrs = append(allErrs, validateBastionImage(spec.Bastion.MachineImage, spec.MachineImages, machineArch, fldPath.Child("machineImage"))...)
+	}
+
+	return allErrs
+}
+
+func validateBastionMachineType(bastionMachine *core.BastionMachineType, machineTypes []core.MachineType, machineArch *string, fldPath *field.Path) (*string, field.ErrorList) {
+	machineIndex := slices.IndexFunc(machineTypes, func(machine core.MachineType) bool {
+		return machine.Name == bastionMachine.Name
+	})
+
+	if machineIndex == -1 {
+		return nil, field.ErrorList{field.Invalid(fldPath.Child("name"), bastionMachine.Name, "machine type not found in spec.MachineTypes")}
+	}
+
+	return machineTypes[machineIndex].Architecture, nil
+}
+
+func validateBastionImage(bastionImage *core.BastionMachineImage, machineImages []core.MachineImage, machineArch *string, fldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+	namePath := fldPath.Child("name")
+
+	imageIndex := slices.IndexFunc(machineImages, func(image core.MachineImage) bool {
+		return image.Name == bastionImage.Name
+	})
+
+	if imageIndex == -1 {
+		return append(allErrs, field.Invalid(namePath, bastionImage.Name, "image name not found in spec.MachineImages"))
+	}
+
+	imageVersions := machineImages[imageIndex].Versions
+
+	if bastionImage.Version == nil {
+		allErrs = append(allErrs, checkImageSupport(bastionImage.Name, imageVersions, machineArch, namePath, core.ClassificationSupported)...)
+	} else {
+		versionPath := fldPath.Child("version")
+
+		versionIndex := slices.IndexFunc(imageVersions, func(version core.MachineImageVersion) bool {
+			return version.Version == *bastionImage.Version
+		})
+
+		if versionIndex == -1 {
+			return append(allErrs, field.Invalid(versionPath, bastionImage.Version, "image version not found in spec.MachineImages"))
+		}
+
+		validClassifications := []core.VersionClassification{
+			core.ClassificationSupported,
+			core.ClassificationPreview,
+		}
+
+		imageVersion := []core.MachineImageVersion{imageVersions[versionIndex]}
+		allErrs = append(allErrs, checkImageSupport(bastionImage.Name, imageVersion, machineArch, versionPath, validClassifications...)...)
+	}
+
+	return allErrs
+}
+
+func checkImageSupport(bastionImageName string, imageVersions []core.MachineImageVersion, machineArch *string, fldPath *field.Path, validClassifications ...core.VersionClassification) field.ErrorList {
+	for _, version := range imageVersions {
+		archSupported := false
+		validClassification := false
+
+		if machineArch != nil && slices.Contains(version.Architectures, *machineArch) {
+			archSupported = true
+		}
+		// any arch is supported in case machineArch is nil
+		if machineArch == nil && len(version.Architectures) > 0 {
+			archSupported = true
+		}
+		if version.Classification != nil && slices.Contains(validClassifications, *version.Classification) {
+			validClassification = true
+		}
+		if archSupported && validClassification {
+			return nil
+		}
+	}
+
+	return field.ErrorList{field.Invalid(fldPath, bastionImageName,
+		fmt.Sprintf("no image statisfies classification '%q' and arch '%s'", validClassifications, ptr.Deref(machineArch, "nil")))}
 }
