@@ -424,7 +424,7 @@ func validateBastion(spec *core.CloudProfileSpec, fldPath *field.Path) field.Err
 	}
 
 	if spec.Bastion.MachineType != nil {
-		machineArch, allErrs = validateBastionMachineType(spec.Bastion.MachineType, spec.MachineTypes, machineArch, fldPath.Child("machineType"))
+		machineArch, allErrs = validateBastionMachineType(spec.Bastion.MachineType, spec.MachineTypes, fldPath.Child("machineType"))
 	}
 
 	if spec.Bastion.MachineImage != nil {
@@ -434,7 +434,7 @@ func validateBastion(spec *core.CloudProfileSpec, fldPath *field.Path) field.Err
 	return allErrs
 }
 
-func validateBastionMachineType(bastionMachine *core.BastionMachineType, machineTypes []core.MachineType, machineArch *string, fldPath *field.Path) (*string, field.ErrorList) {
+func validateBastionMachineType(bastionMachine *core.BastionMachineType, machineTypes []core.MachineType, fldPath *field.Path) (*string, field.ErrorList) {
 	machineIndex := slices.IndexFunc(machineTypes, func(machine core.MachineType) bool {
 		return machine.Name == bastionMachine.Name
 	})
