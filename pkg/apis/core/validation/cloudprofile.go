@@ -424,7 +424,9 @@ func validateBastion(spec *core.CloudProfileSpec, fldPath *field.Path) field.Err
 	}
 
 	if spec.Bastion.MachineType != nil {
-		machineArch, allErrs = validateBastionMachineType(spec.Bastion.MachineType, spec.MachineTypes, fldPath.Child("machineType"))
+		var validationErrors field.ErrorList
+		machineArch, validationErrors = validateBastionMachineType(spec.Bastion.MachineType, spec.MachineTypes, fldPath.Child("machineType"))
+		allErrs = append(allErrs, validationErrors...)
 	}
 
 	if spec.Bastion.MachineImage != nil {
