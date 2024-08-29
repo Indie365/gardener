@@ -455,7 +455,7 @@ func validateBastionImage(bastionImage *core.BastionMachineImage, machineImages 
 	})
 
 	if imageIndex == -1 {
-		return append(allErrs, field.Invalid(namePath, bastionImage.Name, "image name not found in spec.MachineImages"))
+		return append(allErrs, field.Invalid(namePath, bastionImage.Name, "image name not found in spec.machineImages"))
 	}
 
 	imageVersions := machineImages[imageIndex].Versions
