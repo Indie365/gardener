@@ -506,5 +506,5 @@ func checkImageSupport(bastionImageName string, imageVersions []core.MachineImag
 	}
 
 	return field.ErrorList{field.Invalid(fldPath, bastionImageName,
-		fmt.Sprintf("no image statisfies classification '%q' and arch '%s'", validClassifications, ptr.Deref(machineArch, "nil")))}
+		fmt.Sprintf("no image statisfies classification %q and arch %q", validClassifications, ptr.Deref(machineArch, "<nil>")))}
 }
