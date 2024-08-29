@@ -470,7 +470,7 @@ func validateBastionImage(bastionImage *core.BastionMachineImage, machineImages 
 		})
 
 		if versionIndex == -1 {
-			return append(allErrs, field.Invalid(versionPath, bastionImage.Version, "image version not found in spec.MachineImages"))
+			return append(allErrs, field.Invalid(versionPath, bastionImage.Version, "image version not found in spec.machineImages"))
 		}
 
 		validClassifications := []core.VersionClassification{
