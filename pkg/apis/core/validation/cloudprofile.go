@@ -440,7 +440,7 @@ func validateBastionMachineType(bastionMachine *core.BastionMachineType, machine
 	})
 
 	if machineIndex == -1 {
-		return nil, field.ErrorList{field.Invalid(fldPath.Child("name"), bastionMachine.Name, "machine type not found in spec.MachineTypes")}
+		return nil, field.ErrorList{field.Invalid(fldPath.Child("name"), bastionMachine.Name, "machine type not found in spec.machineTypes")}
 	}
 
 	return machineTypes[machineIndex].Architecture, nil
