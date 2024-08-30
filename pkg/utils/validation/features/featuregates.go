@@ -32,7 +32,7 @@ var featureGateVersionRanges = map[string]*FeatureGateVersionRange{
 	"AllowInsecureKubeletCertificateSigningRequests": {VersionRange: versionutils.VersionRange{AddedInVersion: "1.31"}},
 	"AllowServiceLBStatusOnNonLB":                    {VersionRange: versionutils.VersionRange{AddedInVersion: "1.29"}},
 	"APIListChunking":                                {Default: true, LockedToDefaultInVersion: "1.29"},
-	"APIPriorityAndFairness":                         {Default: true, LockedToDefaultInVersion: "1.29"},
+	"APIPriorityAndFairness":                         {Default: true, LockedToDefaultInVersion: "1.29", VersionRange: versionutils.VersionRange{RemovedInVersion: "1.31"}},
 	"APIResponseCompression":                         {},
 	"APISelfSubjectReview":                           {Default: true, LockedToDefaultInVersion: "1.28", VersionRange: versionutils.VersionRange{AddedInVersion: "1.26", RemovedInVersion: "1.30"}},
 	"APIServerIdentity":                              {},
@@ -53,7 +53,7 @@ var featureGateVersionRanges = map[string]*FeatureGateVersionRange{
 	"ConcurrentWatchObjectDecode":                    {VersionRange: versionutils.VersionRange{AddedInVersion: "1.31"}},
 	"ContainerCheckpoint":                            {},
 	"ControllerManagerLeaderMigration":               {Default: true, LockedToDefaultInVersion: "1.24", VersionRange: versionutils.VersionRange{RemovedInVersion: "1.27"}}, // Missing from docu?
-	"ConsistentHTTPGetHandlers":                      {Default: true, LockedToDefaultInVersion: "1.30", VersionRange: versionutils.VersionRange{AddedInVersion: "1.26"}},
+	"ConsistentHTTPGetHandlers":                      {Default: true, LockedToDefaultInVersion: "1.30", VersionRange: versionutils.VersionRange{AddedInVersion: "1.26", RemovedInVersion: "1.31"}},
 	"ConsistentListFromCache":                        {VersionRange: versionutils.VersionRange{AddedInVersion: "1.28"}},
 	"CoordinatedLeaderElection":                      {VersionRange: versionutils.VersionRange{AddedInVersion: "1.31"}},
 	"CPUManager":                                     {Default: true, LockedToDefaultInVersion: "1.26"},
@@ -72,17 +72,17 @@ var featureGateVersionRanges = map[string]*FeatureGateVersionRange{
 	"CSIMigrationGCE":                                {Default: true, LockedToDefaultInVersion: "1.25", VersionRange: versionutils.VersionRange{RemovedInVersion: "1.28"}},
 	"CSIMigrationOpenStack":                          {Default: true, LockedToDefaultInVersion: "1.24", VersionRange: versionutils.VersionRange{RemovedInVersion: "1.26"}},
 	"CSIMigrationPortworx":                           {},
-	"CSIMigrationRBD":                                {},
+	"CSIMigrationRBD":                                {VersionRange: versionutils.VersionRange{RemovedInVersion: "1.31"}},
 	"CSIMigrationvSphere":                            {Default: true, LockedToDefaultInVersion: "1.27", VersionRange: versionutils.VersionRange{RemovedInVersion: "1.29"}},
-	"CSINodeExpandSecret":                            {Default: true, LockedToDefaultInVersion: "1.29"},
+	"CSINodeExpandSecret":                            {Default: true, LockedToDefaultInVersion: "1.29", VersionRange: versionutils.VersionRange{RemovedInVersion: "1.31"}},
 	"CSIStorageCapacity":                             {Default: true, LockedToDefaultInVersion: "1.24", VersionRange: versionutils.VersionRange{RemovedInVersion: "1.28"}},
 	"CSIVolumeHealth":                                {},
 	"CSRDuration":                                    {Default: true, LockedToDefaultInVersion: "1.24", VersionRange: versionutils.VersionRange{RemovedInVersion: "1.26"}},
 	"CustomCPUCFSQuotaPeriod":                        {},
 	"CustomResourceFieldSelectors":                   {VersionRange: versionutils.VersionRange{AddedInVersion: "1.30"}},
-	"CustomResourceValidationExpressions":            {Default: true, LockedToDefaultInVersion: "1.29"},
+	"CustomResourceValidationExpressions":            {Default: true, LockedToDefaultInVersion: "1.29", VersionRange: versionutils.VersionRange{RemovedInVersion: "1.31"}},
 	"DaemonSetUpdateSurge":                           {Default: true, LockedToDefaultInVersion: "1.25", VersionRange: versionutils.VersionRange{RemovedInVersion: "1.27"}}, // Missing from docu?
-	"DefaultHostNetworkHostPortsInPodTemplates":      {VersionRange: versionutils.VersionRange{AddedInVersion: "1.28"}},
+	"DefaultHostNetworkHostPortsInPodTemplates":      {VersionRange: versionutils.VersionRange{AddedInVersion: "1.28", RemovedInVersion: "1.31"}},
 	"DefaultPodTopologySpread":                       {Default: true, LockedToDefaultInVersion: "1.24", VersionRange: versionutils.VersionRange{RemovedInVersion: "1.26"}},
 	"DelegateFSGroupToCSIDriver":                     {Default: true, LockedToDefaultInVersion: "1.26", VersionRange: versionutils.VersionRange{RemovedInVersion: "1.28"}},
 	"DevicePluginCDIDevices":                         {VersionRange: versionutils.VersionRange{AddedInVersion: "1.28"}},
@@ -120,21 +120,21 @@ var featureGateVersionRanges = map[string]*FeatureGateVersionRange{
 	"ImageMaximumGCAge":                              {VersionRange: versionutils.VersionRange{AddedInVersion: "1.29"}},
 	"ImageVolume":                                    {VersionRange: versionutils.VersionRange{AddedInVersion: "1.31"}},
 	"InPlacePodVerticalScaling":                      {VersionRange: versionutils.VersionRange{AddedInVersion: "1.27"}},
-	"InTreePluginAWSUnregister":                      {}, // Missing from docu?
-	"InTreePluginAzureDiskUnregister":                {}, // Missing from docu?
-	"InTreePluginAzureFileUnregister":                {}, // Missing from docu?
-	"InTreePluginGCEUnregister":                      {}, // Missing from docu?
-	"InTreePluginOpenStackUnregister":                {}, // Missing from docu?
+	"InTreePluginAWSUnregister":                      {VersionRange: versionutils.VersionRange{RemovedInVersion: "1.31"}}, // Missing from docu?
+	"InTreePluginAzureDiskUnregister":                {VersionRange: versionutils.VersionRange{RemovedInVersion: "1.31"}}, // Missing from docu?
+	"InTreePluginAzureFileUnregister":                {VersionRange: versionutils.VersionRange{RemovedInVersion: "1.31"}}, // Missing from docu?
+	"InTreePluginGCEUnregister":                      {VersionRange: versionutils.VersionRange{RemovedInVersion: "1.31"}}, // Missing from docu?
+	"InTreePluginOpenStackUnregister":                {VersionRange: versionutils.VersionRange{RemovedInVersion: "1.31"}}, // Missing from docu?
 	"InTreePluginPortworxUnregister":                 {},
-	"InTreePluginRBDUnregister":                      {},
-	"InTreePluginvSphereUnregister":                  {}, // Missing from docu?
+	"InTreePluginRBDUnregister":                      {VersionRange: versionutils.VersionRange{RemovedInVersion: "1.31"}},
+	"InTreePluginvSphereUnregister":                  {VersionRange: versionutils.VersionRange{RemovedInVersion: "1.31"}}, // Missing from docu?
 	"IndexedJob":                                     {Default: true, LockedToDefaultInVersion: "1.24", VersionRange: versionutils.VersionRange{RemovedInVersion: "1.26"}},
 	"JobBackoffLimitPerIndex":                        {VersionRange: versionutils.VersionRange{AddedInVersion: "1.28"}},
 	"JobManagedBy":                                   {VersionRange: versionutils.VersionRange{AddedInVersion: "1.30"}},
 	"JobMutableNodeSchedulingDirectives":             {Default: true, LockedToDefaultInVersion: "1.27", VersionRange: versionutils.VersionRange{RemovedInVersion: "1.29"}},
 	"JobPodFailurePolicy":                            {},
 	"JobPodReplacementPolicy":                        {VersionRange: versionutils.VersionRange{AddedInVersion: "1.28"}},
-	"JobReadyPods":                                   {Default: true, LockedToDefaultInVersion: "1.29"},
+	"JobReadyPods":                                   {Default: true, LockedToDefaultInVersion: "1.29", VersionRange: versionutils.VersionRange{RemovedInVersion: "1.31"}},
 	"JobSuccessPolicy":                               {VersionRange: versionutils.VersionRange{AddedInVersion: "1.30"}},
 	"JobTrackingWithFinalizers":                      {Default: true, LockedToDefaultInVersion: "1.26", VersionRange: versionutils.VersionRange{RemovedInVersion: "1.29"}},
 	"KMSv1":                                          {VersionRange: versionutils.VersionRange{AddedInVersion: "1.28"}},
@@ -198,7 +198,7 @@ var featureGateVersionRanges = map[string]*FeatureGateVersionRange{
 	"ProcMountType":                                  {},
 	"ProxyTerminatingEndpoints":                      {Default: true, LockedToDefaultInVersion: "1.28", VersionRange: versionutils.VersionRange{RemovedInVersion: "1.30"}},
 	"QOSReserved":                                    {},
-	"ReadWriteOncePod":                               {Default: true, LockedToDefaultInVersion: "1.29"},
+	"ReadWriteOncePod":                               {Default: true, LockedToDefaultInVersion: "1.29", VersionRange: versionutils.VersionRange{RemovedInVersion: "1.31"}},
 	"RecoverVolumeExpansionFailure":                  {},
 	"RecursiveReadOnlyMounts":                        {VersionRange: versionutils.VersionRange{AddedInVersion: "1.30"}},
 	"RelaxedEnvironmentVariableValidation":           {VersionRange: versionutils.VersionRange{AddedInVersion: "1.30"}},
@@ -227,11 +227,11 @@ var featureGateVersionRanges = map[string]*FeatureGateVersionRange{
 	"ServiceIPStaticSubrange":                        {Default: true, LockedToDefaultInVersion: "1.26", VersionRange: versionutils.VersionRange{RemovedInVersion: "1.28"}},
 	"ServiceLBNodePortControl":                       {Default: true, LockedToDefaultInVersion: "1.24", VersionRange: versionutils.VersionRange{RemovedInVersion: "1.26"}},
 	"ServiceLoadBalancerClass":                       {Default: true, LockedToDefaultInVersion: "1.24", VersionRange: versionutils.VersionRange{RemovedInVersion: "1.26"}},
-	"ServiceNodePortStaticSubrange":                  {Default: true, LockedToDefaultInVersion: "1.29", VersionRange: versionutils.VersionRange{AddedInVersion: "1.27"}},
+	"ServiceNodePortStaticSubrange":                  {Default: true, LockedToDefaultInVersion: "1.29", VersionRange: versionutils.VersionRange{AddedInVersion: "1.27", RemovedInVersion: "1.31"}},
 	"ServiceTrafficDistribution":                     {VersionRange: versionutils.VersionRange{AddedInVersion: "1.30"}},
 	"SidecarContainers":                              {VersionRange: versionutils.VersionRange{AddedInVersion: "1.28"}},
 	"SizeMemoryBackedVolumes":                        {},
-	"SkipReadOnlyValidationGCE":                      {VersionRange: versionutils.VersionRange{AddedInVersion: "1.28"}},
+	"SkipReadOnlyValidationGCE":                      {VersionRange: versionutils.VersionRange{AddedInVersion: "1.28", RemovedInVersion: "1.31"}},
 	"StableLoadBalancerNodeSet":                      {Default: true, LockedToDefaultInVersion: "1.30", VersionRange: versionutils.VersionRange{AddedInVersion: "1.27"}},
 	"StatefulSetAutoDeletePVC":                       {},
 	"StatefulSetMinReadySeconds":                     {Default: true, LockedToDefaultInVersion: "1.25", VersionRange: versionutils.VersionRange{RemovedInVersion: "1.27"}},
