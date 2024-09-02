@@ -423,6 +423,10 @@ func validateBastion(spec *core.CloudProfileSpec, fldPath *field.Path) field.Err
 		return allErrs
 	}
 
+	if spec.Bastion.MachineType == nil && spec.Bastion.MachineImage == nil {
+		allErrs = append(allErrs, field.Invalid(fldPath, spec.Bastion, "bastion section needs a machine type or machine image"))
+	}
+
 	if spec.Bastion.MachineType != nil {
 		var validationErrors field.ErrorList
 		machineArch, validationErrors = validateBastionMachineType(spec.Bastion.MachineType, spec.MachineTypes, fldPath.Child("machineType"))
