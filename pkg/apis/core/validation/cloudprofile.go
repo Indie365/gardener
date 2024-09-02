@@ -440,13 +440,13 @@ func validateBastion(spec *core.CloudProfileSpec, fldPath *field.Path) field.Err
 	return allErrs
 }
 
-func validateBastionMachineType(bastionMachine *core.BastionMachineType, machineTypes []core.MachineType, fldPath *field.Path) (*string, field.ErrorList) {
-	machineIndex := slices.IndexFunc(machineTypes, func(machine core.MachineType) bool {
-		return machine.Name == bastionMachine.Name
+func validateBastionMachineType(bastionMachineType *core.BastionMachineType, machineTypes []core.MachineType, fldPath *field.Path) (*string, field.ErrorList) {
+	machineIndex := slices.IndexFunc(machineTypes, func(machineType core.MachineType) bool {
+		return machineType.Name == bastionMachineType.Name
 	})
 
 	if machineIndex == -1 {
-		return nil, field.ErrorList{field.Invalid(fldPath.Child("name"), bastionMachine.Name, "machine type not found in spec.machineTypes")}
+		return nil, field.ErrorList{field.Invalid(fldPath.Child("name"), bastionMachineType.Name, "machine type not found in spec.machineTypes")}
 	}
 
 	return machineTypes[machineIndex].Architecture, nil
