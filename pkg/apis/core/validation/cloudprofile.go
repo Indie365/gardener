@@ -467,7 +467,7 @@ func validateBastionImage(bastionImage *core.BastionMachineImage, machineImages 
 	imageVersions := machineImages[imageIndex].Versions
 
 	if bastionImage.Version == nil {
-		allErrs = append(allErrs, checkImageSupport(bastionImage.Name, imageVersions, machineArch, namePath, core.ClassificationSupported)...)
+		allErrs = append(allErrs, checkImageSupport(bastionImage.Name, imageVersions, machineArch, namePath)...)
 	} else {
 		versionPath := fldPath.Child("version")
 
@@ -479,19 +479,14 @@ func validateBastionImage(bastionImage *core.BastionMachineImage, machineImages 
 			return append(allErrs, field.Invalid(versionPath, bastionImage.Version, "image version not found in spec.machineImages"))
 		}
 
-		validClassifications := []core.VersionClassification{
-			core.ClassificationSupported,
-			core.ClassificationPreview,
-		}
-
 		imageVersion := []core.MachineImageVersion{imageVersions[versionIndex]}
-		allErrs = append(allErrs, checkImageSupport(bastionImage.Name, imageVersion, machineArch, versionPath, validClassifications...)...)
+		allErrs = append(allErrs, checkImageSupport(bastionImage.Name, imageVersion, machineArch, versionPath)...)
 	}
 
 	return allErrs
 }
 
-func checkImageSupport(bastionImageName string, imageVersions []core.MachineImageVersion, machineArch *string, fldPath *field.Path, validClassifications ...core.VersionClassification) field.ErrorList {
+func checkImageSupport(bastionImageName string, imageVersions []core.MachineImageVersion, machineArch *string, fldPath *field.Path) field.ErrorList {
 	for _, version := range imageVersions {
 		archSupported := false
 		validClassification := false
@@ -503,7 +498,7 @@ func checkImageSupport(bastionImageName string, imageVersions []core.MachineImag
 		if machineArch == nil && len(version.Architectures) > 0 {
 			archSupported = true
 		}
-		if version.Classification != nil && slices.Contains(validClassifications, *version.Classification) {
+		if version.Classification != nil && *version.Classification == core.ClassificationSupported {
 			validClassification = true
 		}
 		if archSupported && validClassification {
@@ -512,5 +507,5 @@ func checkImageSupport(bastionImageName string, imageVersions []core.MachineImag
 	}
 
 	return field.ErrorList{field.Invalid(fldPath, bastionImageName,
-		fmt.Sprintf("no image statisfies classification %q and arch %q", validClassifications, ptr.Deref(machineArch, "<nil>")))}
+		fmt.Sprintf("no image with classification supported and arch %q found", ptr.Deref(machineArch, "<nil>")))}
 }
