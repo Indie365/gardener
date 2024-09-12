@@ -46,7 +46,7 @@ active-backup mode. This means the traffic only goes through the active sublink 
 becomes unavailable. Switching happens in the bonding network driver without changing any routes. So with this layer, 
 vpn-seed-server pods can be rolled without disrupting open connections.
 
-![VPN HA Architecture](images/vpn-ha-architecture.png)
+![VPN HA Architecture](content/vpn-ha-architecture.png)
 
 With bonding, there are 2 possible routing paths, ensuring that there is at least one routing path intact even if
 one `vpn-seed-server` pod and one `vpn-shoot` pod are unavailable at the same time.
@@ -56,6 +56,6 @@ For this purpose, the `path-controller` script is running in another side-car of
 It pings all shoot-side VPN clients regularly every few seconds. If the active routing path is not responsive anymore,
 the routing is switched to the other responsive routing path.
 
-![Four possible routing paths](images/vpn-ha-routing-paths.png)
+![Four possible routing paths](content/vpn-ha-routing-paths.png)
 
 For general information about HA control-plane, see [GEP-20](../proposals/20-ha-control-planes.md). 
