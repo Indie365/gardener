@@ -6,6 +6,7 @@ package validation
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/Masterminds/semver/v3"
 	apivalidation "k8s.io/apimachinery/pkg/api/validation"
@@ -67,8 +68,8 @@ func ValidateCloudProfileSpec(spec *core.CloudProfileSpec, fldPath *field.Path) 
 	allErrs = append(allErrs, validateCloudProfileMachineImages(spec.MachineImages, fldPath.Child("machineImages"))...)
 	allErrs = append(allErrs, validateCloudProfileMachineTypes(spec.MachineTypes, fldPath.Child("machineTypes"))...)
 	allErrs = append(allErrs, validateVolumeTypes(spec.VolumeTypes, fldPath.Child("volumeTypes"))...)
-	allErrs = append(allErrs, validateBastion(spec, fldPath.Child("bastion"))...)
 	allErrs = append(allErrs, validateCloudProfileRegions(spec.Regions, fldPath.Child("regions"))...)
+	allErrs = append(allErrs, validateCloudProfileBastion(spec, fldPath.Child("bastion"))...)
 	if spec.SeedSelector != nil {
 		allErrs = append(allErrs, metav1validation.ValidateLabelSelector(&spec.SeedSelector.LabelSelector, metav1validation.LabelSelectorValidationOptions{AllowInvalidLabelValueInSelector: true}, fldPath.Child("seedSelector"))...)
 	}
@@ -244,7 +245,7 @@ func validateCloudProfileRegions(regions []core.Region, fldPath *field.Path) fie
 	return allErrs
 }
 
-func validateBastion(spec *core.CloudProfileSpec, fldPath *field.Path) field.ErrorList {
+func validateCloudProfileBastion(spec *core.CloudProfileSpec, fldPath *field.Path) field.ErrorList {
 	var (
 		allErrs     field.ErrorList
 		machineArch *string
