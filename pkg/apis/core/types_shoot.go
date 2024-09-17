@@ -106,9 +106,10 @@ type ShootSpec struct {
 	CloudProfile *CloudProfileReference
 	// CredentialsBindingName is the name of the a CredentialsBinding that has a reference to the provider credentials.
 	// The credentials will be used to create the shoot in the respective account. The field is mutually exclusive with SecretBindingName.
-	// This field is immutable.
 	CredentialsBindingName *string
 }
+
+var _ Object = (*Shoot)(nil)
 
 // GetProviderType gets the type of the provider.
 func (s *Shoot) GetProviderType() string {
@@ -117,7 +118,7 @@ func (s *Shoot) GetProviderType() string {
 
 // ShootStatus holds the most recently observed status of the Shoot cluster.
 type ShootStatus struct {
-	// Conditions represents the latest available observations of a Shoots's current state.
+	// Conditions represents the latest available observations of a Shoot's current state.
 	Conditions []Condition
 	// Constraints represents conditions of a Shoot's current state that constraint some operations on it.
 	Constraints []Condition
@@ -237,7 +238,7 @@ type ShootKubeconfigRotation struct {
 
 // ShootSSHKeypairRotation contains information about the ssh-keypair credential rotation.
 type ShootSSHKeypairRotation struct {
-	// LastInitiationTime is the most recent time when the certificate authority credential rotation was initiated.
+	// LastInitiationTime is the most recent time when the ssh-keypair credential rotation was initiated.
 	LastInitiationTime *metav1.Time
 	// LastCompletionTime is the most recent time when the ssh-keypair credential rotation was successfully completed.
 	LastCompletionTime *metav1.Time
@@ -260,10 +261,10 @@ type ServiceAccountKeyRotation struct {
 	LastCompletionTime *metav1.Time
 	// LastInitiationTime is the most recent time when the service account key credential rotation was initiated.
 	LastInitiationTime *metav1.Time
-	// LastInitiationFinishedTime is the recent time when the certificate authority credential rotation initiation was
+	// LastInitiationFinishedTime is the recent time when the service account key credential rotation initiation was
 	// completed.
 	LastInitiationFinishedTime *metav1.Time
-	// LastCompletionTriggeredTime is the recent time when the certificate authority credential rotation completion was
+	// LastCompletionTriggeredTime is the recent time when the service account key credential rotation completion was
 	// triggered.
 	LastCompletionTriggeredTime *metav1.Time
 }
@@ -277,10 +278,10 @@ type ETCDEncryptionKeyRotation struct {
 	LastCompletionTime *metav1.Time
 	// LastInitiationTime is the most recent time when the ETCD encryption key credential rotation was initiated.
 	LastInitiationTime *metav1.Time
-	// LastInitiationFinishedTime is the recent time when the certificate authority credential rotation initiation was
+	// LastInitiationFinishedTime is the recent time when the ETCD encryption key credential rotation initiation was
 	// completed.
 	LastInitiationFinishedTime *metav1.Time
-	// LastCompletionTriggeredTime is the recent time when the certificate authority credential rotation completion was
+	// LastCompletionTriggeredTime is the recent time when the ETCD encryption key credential rotation completion was
 	// triggered.
 	LastCompletionTriggeredTime *metav1.Time
 }
@@ -344,7 +345,7 @@ type NginxIngress struct {
 	Config map[string]string
 	// ExternalTrafficPolicy controls the `.spec.externalTrafficPolicy` value of the load balancer `Service`
 	// exposing the nginx-ingress. Defaults to `Cluster`.
-	ExternalTrafficPolicy *corev1.ServiceExternalTrafficPolicyType
+	ExternalTrafficPolicy *corev1.ServiceExternalTrafficPolicy
 }
 
 // ControlPlane holds information about the general settings for the control plane of a shoot.
@@ -361,6 +362,7 @@ type DNS struct {
 	Domain *string
 	// Providers is a list of DNS providers that shall be enabled for this shoot cluster. Only relevant if
 	// not a default domain is used.
+	//
 	// Deprecated: Configuring multiple DNS providers is deprecated and will be forbidden in a future release.
 	// Please use the DNS extension provider config (e.g. shoot-dns-service) for additional providers.
 	Providers []DNSProvider
@@ -371,10 +373,12 @@ type DNS struct {
 // DNSProvider contains information about a DNS provider.
 type DNSProvider struct {
 	// Domains contains information about which domains shall be included/excluded for this provider.
+	//
 	// Deprecated: This field is deprecated and will be removed in a future release.
 	// Please use the DNS extension provider config (e.g. shoot-dns-service) for additional configuration.
 	Domains *DNSIncludeExclude
 	// Primary indicates that this DNSProvider is used for shoot related domains.
+	//
 	// Deprecated: This field is deprecated and will be removed in a future release.
 	// Please use the DNS extension provider config (e.g. shoot-dns-service) for additional and non-primary providers.
 	Primary *bool
@@ -387,6 +391,7 @@ type DNSProvider struct {
 	// this shoot.
 	Type *string
 	// Zones contains information about which hosted zones shall be included/excluded for this provider.
+	//
 	// Deprecated: This field is deprecated and will be removed in a future release.
 	// Please use the DNS extension provider config (e.g. shoot-dns-service) for additional configuration.
 	Zones *DNSIncludeExclude
@@ -588,6 +593,8 @@ type KubeAPIServerConfig struct {
 	APIAudiences []string
 	// AuditConfig contains configuration settings for the audit of the kube-apiserver.
 	AuditConfig *AuditConfig
+	// StructuredAuthentication contains configuration settings for structured authentication to the kube-apiserver.
+	StructuredAuthentication *StructuredAuthentication
 	// OIDCConfig contains configuration settings for the OIDC provider.
 	OIDCConfig *OIDCConfig
 	// RuntimeConfig contains information about enabled or disabled APIs.
@@ -688,20 +695,31 @@ type AuditPolicy struct {
 	ConfigMapRef *corev1.ObjectReference
 }
 
+// StructuredAuthentication contains authentication config for kube-apiserver.
+type StructuredAuthentication struct {
+	// ConfigMapName is the name of the ConfigMap in the project namespace
+	// which contains AuthenticationConfiguration for the kube-apiserver.
+	ConfigMapName string
+}
+
 // OIDCConfig contains configuration settings for the OIDC provider.
 // Note: Descriptions were taken from the Kubernetes documentation.
 type OIDCConfig struct {
 	// If set, the OpenID server's certificate will be verified by one of the authorities in the oidc-ca-file, otherwise the host's root CA set will be used.
 	CABundle *string
 	// ClientAuthentication can optionally contain client configuration used for kubeconfig generation.
+	//
+	// Deprecated: This field has no implemented use and will be forbidden starting from Kubernetes 1.31.
+	// It's use was planned for genereting OIDC kubeconfig https://github.com/gardener/gardener/issues/1433
+	// TODO(AleksandarSavchev): Drop this field after support for Kubernetes 1.30 is dropped.
 	ClientAuthentication *OpenIDConnectClientAuthentication
-	// The client ID for the OpenID Connect client, must be set if oidc-issuer-url is set.
+	// The client ID for the OpenID Connect client, must be set.
 	ClientID *string
 	// If provided, the name of a custom OpenID Connect claim for specifying user groups. The claim value is expected to be a string or array of strings. This flag is experimental, please see the authentication documentation for further details.
 	GroupsClaim *string
 	// If provided, all groups will be prefixed with this value to prevent conflicts with other authentication strategies.
 	GroupsPrefix *string
-	// The URL of the OpenID issuer, only HTTPS scheme will be accepted. If set, it will be used to verify the OIDC JSON Web Token (JWT).
+	// The URL of the OpenID issuer, only HTTPS scheme will be accepted. Used to verify the OIDC JSON Web Token (JWT).
 	IssuerURL *string
 	// key=value pairs that describes a required claim in the ID Token. If set, the claim is verified to be present in the ID Token with a matching value.
 	RequiredClaims map[string]string
@@ -903,9 +921,10 @@ type KubeletConfig struct {
 	KubeReserved *KubeletConfigReserved
 	// SystemReserved is the configuration for resources reserved for system processes not managed by kubernetes (e.g. journald).
 	// When updating these values, be aware that cgroup resizes may not succeed on active worker nodes. Look for the NodeAllocatableEnforced event to determine if the configuration was applied.
-	// Deprecated: Separately configuring resource reservations for system processes is deprecated in Gardener and will be removed soon.
+	//
+	// Deprecated: Separately configuring resource reservations for system processes is deprecated in Gardener and will be forbidden starting from Kubernetes 1.31.
 	// Please merge existing resource reservations into the kubeReserved field.
-	// TODO(MichaelEischer): Drop this field after v1.113 has been released.
+	// TODO(MichaelEischer): Drop this field after support for Kubernetes 1.30 is dropped.
 	SystemReserved *KubeletConfigReserved
 	// ImageGCHighThresholdPercent describes the percent of the disk usage which triggers image garbage collection.
 	ImageGCHighThresholdPercent *int32

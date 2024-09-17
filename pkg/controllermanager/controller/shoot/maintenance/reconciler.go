@@ -211,18 +211,22 @@ func (r *Reconciler) reconcile(ctx context.Context, log logr.Logger, shoot *gard
 
 		for i := range maintainedShoot.Spec.Provider.Workers {
 			if maintainedShoot.Spec.Provider.Workers[i].Kubernetes != nil && maintainedShoot.Spec.Provider.Workers[i].Kubernetes.Kubelet != nil {
-				kubeletVersion := ptr.Deref(maintainedShoot.Spec.Provider.Workers[i].Kubernetes.Version, shoot.Spec.Kubernetes.Version)
+				kubeletVersion := ptr.Deref(maintainedShoot.Spec.Provider.Workers[i].Kubernetes.Version, maintainedShoot.Spec.Kubernetes.Version)
 				kubeletSemverVersion, err := semver.NewVersion(kubeletVersion)
 				if err != nil {
 					return fmt.Errorf("error parsing kubelet version for worker pool %q: %w", maintainedShoot.Spec.Provider.Workers[i].Name, err)
 				}
 
 				if versionutils.ConstraintK8sGreaterEqual130.Check(kubeletSemverVersion) {
-					operations = append(operations, setLimitedSwap(maintainedShoot.Spec.Provider.Workers[i].Kubernetes.Kubelet, fmt.Sprintf("spec.provider.workers[%d].kubernetes.kubelet.meomrySwap.swapBehavior", i))...)
+					operations = append(operations, setLimitedSwap(maintainedShoot.Spec.Provider.Workers[i].Kubernetes.Kubelet, fmt.Sprintf("spec.provider.workers[%d].kubernetes.kubelet.memorySwap.swapBehavior", i))...)
 				}
 			}
 		}
 	}
+
+	// TODO(ialidzhikov): Kubernetes.Kubelet.SystemReserved is no longer supported in Gardener starting from K8S 1.31.
+	// If Kubernetes.Kubelet.SystemReserved != nil for a Shoot or Worker pool, then add/move the values of its resources to
+	// Kubernetes.Kubelete.KubeReserved
 
 	operation := maintainOperation(maintainedShoot)
 	if operation != "" {

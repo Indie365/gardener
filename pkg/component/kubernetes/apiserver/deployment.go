@@ -82,7 +82,6 @@ const (
 	volumeMountPathHTTPProxy                       = "/etc/srv/kubernetes/envoy"
 	volumeMountPathKubeAPIServerToKubelet          = "/srv/kubernetes/apiserver-kubelet"
 	volumeMountPathKubeAggregator                  = "/srv/kubernetes/aggregator"
-	volumeMountPathOIDCCABundle                    = "/srv/kubernetes/oidc"
 	volumeMountPathServiceAccountKey               = "/srv/kubernetes/service-account-key"
 	volumeMountPathServiceAccountKeyBundle         = "/srv/kubernetes/service-account-key-bundle"
 	volumeMountPathStaticToken                     = "/srv/kubernetes/token"    // #nosec G101 -- No credential.
@@ -106,6 +105,7 @@ func (k *kubeAPIServer) reconcileDeployment(
 	deployment *appsv1.Deployment,
 	serviceAccount *corev1.ServiceAccount,
 	configMapAuditPolicy *corev1.ConfigMap,
+	configMapAuthenticationConfig *corev1.ConfigMap,
 	configMapAdmissionConfigs *corev1.ConfigMap,
 	secretAdmissionKubeconfigs *corev1.Secret,
 	configMapEgressSelector *corev1.ConfigMap,
@@ -374,9 +374,9 @@ func (k *kubeAPIServer) reconcileDeployment(
 		apiserver.InjectEncryptionSettings(deployment, secretETCDEncryptionConfiguration)
 		k.handleSNISettings(deployment)
 		k.handleTLSSNISettings(deployment, tlsSNISecrets)
-		k.handleOIDCSettings(deployment, secretOIDCCABundle)
+		k.handleAuthenticationSettings(deployment, configMapAuthenticationConfig, secretOIDCCABundle)
 		k.handleServiceAccountSigningKeySettings(deployment)
-		k.handleAuthenticationSettings(deployment, secretAuthenticationWebhookKubeconfig)
+		k.handleAuthenticationWebhookSettings(deployment, secretAuthenticationWebhookKubeconfig)
 		k.handleAuthorizationSettings(deployment, secretAuthorizationWebhookKubeconfig)
 		if err := k.handleVPNSettings(deployment, serviceAccount, configMapEgressSelector, secretHTTPProxy, secretHAVPNSeedClient, secretHAVPNSeedClientSeedTLSAuth); err != nil {
 			return err
@@ -617,46 +617,19 @@ func (k *kubeAPIServer) handleVPNSettingsHA(
 	deployment.Spec.Template.Spec.ServiceAccountName = serviceAccount.Name
 	deployment.Spec.Template.Labels[v1beta1constants.LabelNetworkPolicyToRuntimeAPIServer] = v1beta1constants.LabelNetworkPolicyAllowed
 
+	// vpn-path-controller uses ping to probe clients. By default, the kernel allows no groups to do unprivileged pings.
+	// Configuring this parameter allows group 0 to do unprivileged pings.
+	deployment.Spec.Template.Spec.SecurityContext.Sysctls = append(deployment.Spec.Template.Spec.SecurityContext.Sysctls,
+		corev1.Sysctl{
+			Name:  "net.ipv4.ping_group_range",
+			Value: "0 0",
+		})
+
 	for i := 0; i < k.values.VPN.HighAvailabilityNumberOfSeedServers; i++ {
 		deployment.Spec.Template.Spec.Containers = append(deployment.Spec.Template.Spec.Containers, *k.vpnSeedClientContainer(i))
 	}
 	deployment.Spec.Template.Spec.Containers = append(deployment.Spec.Template.Spec.Containers, *k.vpnSeedPathControllerContainer())
-
-	container := *k.vpnSeedClientContainer(0)
-	container.Name = "vpn-client-init"
-	container.Env = append(container.Env, []corev1.EnvVar{
-		{
-			Name:  "CONFIGURE_BONDING",
-			Value: "true",
-		},
-		{
-			Name:  "EXIT_AFTER_CONFIGURING_KERNEL_SETTINGS",
-			Value: "true",
-		},
-		{
-			Name: "POD_NAME",
-			ValueFrom: &corev1.EnvVarSource{
-				FieldRef: &corev1.ObjectFieldSelector{
-					FieldPath: "metadata.name",
-				},
-			},
-		},
-		{
-			Name: "NAMESPACE",
-			ValueFrom: &corev1.EnvVarSource{
-				FieldRef: &corev1.ObjectFieldSelector{
-					FieldPath: "metadata.namespace",
-				},
-			},
-		},
-	}...)
-	container.LivenessProbe = nil
-	container.VolumeMounts = append(container.VolumeMounts, corev1.VolumeMount{
-		Name:      volumeNameAPIServerAccess,
-		MountPath: volumeMountPathAPIServerAccess,
-		ReadOnly:  true,
-	})
-	deployment.Spec.Template.Spec.InitContainers = append(deployment.Spec.Template.Spec.InitContainers, container)
+	deployment.Spec.Template.Spec.InitContainers = append(deployment.Spec.Template.Spec.InitContainers, *k.vpnSeedClientInitContainer())
 
 	hostPathCharDev := corev1.HostPathCharDev
 	deployment.Spec.Template.Spec.Volumes = append(deployment.Spec.Template.Spec.Volumes, []corev1.Volume{
@@ -757,6 +730,51 @@ func (k *kubeAPIServer) handleVPNSettingsHA(
 	}...)
 }
 
+func (k *kubeAPIServer) vpnSeedClientInitContainer() *corev1.Container {
+	container := k.vpnSeedClientContainer(0)
+	container.Name = "vpn-client-init"
+	container.Command = []string{"/bin/vpn-client", "setup"}
+	container.Env = append(container.Env, []corev1.EnvVar{
+		{
+			Name: "POD_NAME",
+			ValueFrom: &corev1.EnvVarSource{
+				FieldRef: &corev1.ObjectFieldSelector{
+					FieldPath: "metadata.name",
+				},
+			},
+		},
+		{
+			Name: "NAMESPACE",
+			ValueFrom: &corev1.EnvVarSource{
+				FieldRef: &corev1.ObjectFieldSelector{
+					FieldPath: "metadata.namespace",
+				},
+			},
+		},
+	}...)
+
+	if k.values.VPN.DisableNewVPN {
+		container.Command = nil
+		container.Env = append(container.Env,
+			corev1.EnvVar{
+				Name:  "EXIT_AFTER_CONFIGURING_KERNEL_SETTINGS",
+				Value: "true",
+			},
+			corev1.EnvVar{
+				Name:  "CONFIGURE_BONDING",
+				Value: "true",
+			})
+	}
+
+	container.LivenessProbe = nil
+	container.VolumeMounts = append(container.VolumeMounts, corev1.VolumeMount{
+		Name:      volumeNameAPIServerAccess,
+		MountPath: volumeMountPathAPIServerAccess,
+		ReadOnly:  true,
+	})
+	return container
+}
+
 func (k *kubeAPIServer) vpnSeedClientContainer(index int) *corev1.Container {
 	nodes := ""
 	if len(k.values.VPN.NodeNetworkCIDRs) > 0 {
@@ -789,6 +807,10 @@ func (k *kubeAPIServer) vpnSeedClientContainer(index int) *corev1.Container {
 				Value: strconv.Itoa(index),
 			},
 			{
+				Name:  "IS_HA",
+				Value: "true",
+			},
+			{
 				Name:  "HA_VPN_SERVERS",
 				Value: strconv.Itoa(k.values.VPN.HighAvailabilityNumberOfSeedServers),
 			},
@@ -799,10 +821,6 @@ func (k *kubeAPIServer) vpnSeedClientContainer(index int) *corev1.Container {
 			{
 				Name:  "OPENVPN_PORT",
 				Value: strconv.Itoa(vpnseedserver.OpenVPNPort),
-			},
-			{
-				Name:  "DO_NOT_CONFIGURE_KERNEL_SETTINGS",
-				Value: "true",
 			},
 		},
 		Resources: corev1.ResourceRequirements{
@@ -838,6 +856,22 @@ func (k *kubeAPIServer) vpnSeedClientContainer(index int) *corev1.Container {
 			},
 		},
 	}
+
+	if len(k.values.VPN.IPFamilies) > 0 {
+		container.Env = append(container.Env, corev1.EnvVar{
+			Name:  "IP_FAMILIES",
+			Value: string(k.values.VPN.IPFamilies[0]),
+		})
+	}
+
+	if k.values.VPN.DisableNewVPN {
+		container.Command = nil
+		container.Env = append(container.Env, corev1.EnvVar{
+			Name:  "DO_NOT_CONFIGURE_KERNEL_SETTINGS",
+			Value: "true",
+		})
+	}
+
 	return container
 }
 
@@ -851,7 +885,7 @@ func (k *kubeAPIServer) vpnSeedPathControllerContainer() *corev1.Container {
 		Name:            containerNameVPNPathController,
 		Image:           k.values.Images.VPNClient,
 		ImagePullPolicy: corev1.PullIfNotPresent,
-		Command:         []string{"/path-controller.sh"},
+		Command:         []string{"/bin/vpn-client", "path-controller"},
 		Env: []corev1.EnvVar{
 			{
 				Name:  "SERVICE_NETWORK",
@@ -866,8 +900,20 @@ func (k *kubeAPIServer) vpnSeedPathControllerContainer() *corev1.Container {
 				Value: nodes,
 			},
 			{
+				Name:  "IS_HA",
+				Value: "true",
+			},
+			{
 				Name:  "HA_VPN_CLIENTS",
 				Value: strconv.Itoa(k.values.VPN.HighAvailabilityNumberOfShootClients),
+			},
+			{
+				Name: "POD_IP",
+				ValueFrom: &corev1.EnvVarSource{
+					FieldRef: &corev1.ObjectFieldSelector{
+						FieldPath: "status.podIP",
+					},
+				},
 			},
 		},
 		Resources: corev1.ResourceRequirements{
@@ -882,6 +928,8 @@ func (k *kubeAPIServer) vpnSeedPathControllerContainer() *corev1.Container {
 		SecurityContext: &corev1.SecurityContext{
 			RunAsNonRoot: ptr.To(false),
 			RunAsUser:    ptr.To[int64](0),
+			// group needs to be set to a concrete value to allow unprivileged ping socket when configuring sysctl net.ipv4.ping_group_range
+			RunAsGroup: ptr.To[int64](0),
 			Capabilities: &corev1.Capabilities{
 				Add: []corev1.Capability{"NET_ADMIN"},
 			},
@@ -889,65 +937,13 @@ func (k *kubeAPIServer) vpnSeedPathControllerContainer() *corev1.Container {
 		TerminationMessagePath:   corev1.TerminationMessagePathDefault,
 		TerminationMessagePolicy: corev1.TerminationMessageReadFile,
 	}
+
+	if k.values.VPN.DisableNewVPN {
+		container.Command = nil
+		container.Args = []string{"/path-controller.sh"}
+	}
+
 	return container
-}
-
-func (k *kubeAPIServer) handleOIDCSettings(deployment *appsv1.Deployment, secretOIDCCABundle *corev1.Secret) {
-	if k.values.OIDC == nil {
-		return
-	}
-
-	if k.values.OIDC.CABundle != nil {
-		deployment.Spec.Template.Spec.Containers[0].Args = append(deployment.Spec.Template.Spec.Containers[0].Args, fmt.Sprintf("--oidc-ca-file=%s/%s", volumeMountPathOIDCCABundle, secretOIDCCABundleDataKeyCaCrt))
-		deployment.Spec.Template.Spec.Containers[0].VolumeMounts = append(deployment.Spec.Template.Spec.Containers[0].VolumeMounts, []corev1.VolumeMount{
-			{
-				Name:      volumeNameOIDCCABundle,
-				MountPath: volumeMountPathOIDCCABundle,
-			},
-		}...)
-		deployment.Spec.Template.Spec.Volumes = append(deployment.Spec.Template.Spec.Volumes, []corev1.Volume{
-			{
-				Name: volumeNameOIDCCABundle,
-				VolumeSource: corev1.VolumeSource{
-					Secret: &corev1.SecretVolumeSource{
-						SecretName: secretOIDCCABundle.Name,
-					},
-				},
-			},
-		}...)
-	}
-
-	if v := k.values.OIDC.IssuerURL; v != nil {
-		deployment.Spec.Template.Spec.Containers[0].Args = append(deployment.Spec.Template.Spec.Containers[0].Args, "--oidc-issuer-url="+*v)
-	}
-
-	if v := k.values.OIDC.ClientID; v != nil {
-		deployment.Spec.Template.Spec.Containers[0].Args = append(deployment.Spec.Template.Spec.Containers[0].Args, "--oidc-client-id="+*v)
-	}
-
-	if v := k.values.OIDC.UsernameClaim; v != nil {
-		deployment.Spec.Template.Spec.Containers[0].Args = append(deployment.Spec.Template.Spec.Containers[0].Args, "--oidc-username-claim="+*v)
-	}
-
-	if v := k.values.OIDC.GroupsClaim; v != nil {
-		deployment.Spec.Template.Spec.Containers[0].Args = append(deployment.Spec.Template.Spec.Containers[0].Args, "--oidc-groups-claim="+*v)
-	}
-
-	if v := k.values.OIDC.UsernamePrefix; v != nil {
-		deployment.Spec.Template.Spec.Containers[0].Args = append(deployment.Spec.Template.Spec.Containers[0].Args, "--oidc-username-prefix="+*v)
-	}
-
-	if v := k.values.OIDC.GroupsPrefix; v != nil {
-		deployment.Spec.Template.Spec.Containers[0].Args = append(deployment.Spec.Template.Spec.Containers[0].Args, "--oidc-groups-prefix="+*v)
-	}
-
-	if k.values.OIDC.SigningAlgs != nil {
-		deployment.Spec.Template.Spec.Containers[0].Args = append(deployment.Spec.Template.Spec.Containers[0].Args, "--oidc-signing-algs="+strings.Join(k.values.OIDC.SigningAlgs, ","))
-	}
-
-	for key, value := range k.values.OIDC.RequiredClaims {
-		deployment.Spec.Template.Spec.Containers[0].Args = append(deployment.Spec.Template.Spec.Containers[0].Args, "--oidc-required-claim="+fmt.Sprintf("%s=%s", key, value))
-	}
 }
 
 func (k *kubeAPIServer) handleServiceAccountSigningKeySettings(deployment *appsv1.Deployment) {
@@ -1005,7 +1001,7 @@ func (k *kubeAPIServer) handleKubeletSettings(deployment *appsv1.Deployment, sec
 	return nil
 }
 
-func (k *kubeAPIServer) handleAuthenticationSettings(deployment *appsv1.Deployment, secretWebhookKubeconfig *corev1.Secret) {
+func (k *kubeAPIServer) handleAuthenticationWebhookSettings(deployment *appsv1.Deployment, secretWebhookKubeconfig *corev1.Secret) {
 	if k.values.AuthenticationWebhook == nil {
 		return
 	}

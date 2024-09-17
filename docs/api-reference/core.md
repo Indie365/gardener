@@ -1057,20 +1057,6 @@ KubernetesSettings
 </tr>
 <tr>
 <td>
-<code>regions</code></br>
-<em>
-<a href="#core.gardener.cloud/v1beta1.Region">
-[]Region
-</a>
-</em>
-</td>
-<td>
-<em>(Optional)</em>
-<p>Regions contains constraints regarding allowed values for regions and zones.</p>
-</td>
-</tr>
-<tr>
-<td>
 <code>volumeTypes</code></br>
 <em>
 <a href="#core.gardener.cloud/v1beta1.VolumeType">
@@ -1405,7 +1391,7 @@ Kubernetes core/v1.ObjectReference
 </em>
 </td>
 <td>
-<p>Scope is the scope of the Quota object, either &lsquo;project&rsquo; or &lsquo;secret&rsquo;. This field is immutable.</p>
+<p>Scope is the scope of the Quota object, either &lsquo;project&rsquo;, &lsquo;secret&rsquo; or &lsquo;workloadidentity&rsquo;. This field is immutable.</p>
 </td>
 </tr>
 </table>
@@ -2067,8 +2053,7 @@ string
 <td>
 <em>(Optional)</em>
 <p>CredentialsBindingName is the name of the a CredentialsBinding that has a reference to the provider credentials.
-The credentials will be used to create the shoot in the respective account. The field is mutually exclusive with SecretBindingName.
-This field is immutable.</p>
+The credentials will be used to create the shoot in the respective account. The field is mutually exclusive with SecretBindingName.</p>
 </td>
 </tr>
 </table>
@@ -3190,7 +3175,7 @@ CRIName
 <a href="#core.gardener.cloud/v1beta1.ShootSpec">ShootSpec</a>)
 </p>
 <p>
-<p>CloudProfileReference holds the information about the parent of the NamespacedCloudProfile.</p>
+<p>CloudProfileReference holds the information about a CloudProfile or a NamespacedCloudProfile.</p>
 </p>
 <table>
 <thead>
@@ -4459,8 +4444,8 @@ kubeconfig that is handed out to end-users. This field is immutable.</p>
 <td>
 <em>(Optional)</em>
 <p>Providers is a list of DNS providers that shall be enabled for this shoot cluster. Only relevant if
-not a default domain is used.
-Deprecated: Configuring multiple DNS providers is deprecated and will be forbidden in a future release.
+not a default domain is used.</p>
+<p>Deprecated: Configuring multiple DNS providers is deprecated and will be forbidden in a future release.
 Please use the DNS extension provider config (e.g. shoot-dns-service) for additional providers.</p>
 </td>
 </tr>
@@ -4537,8 +4522,8 @@ DNSIncludeExclude
 </td>
 <td>
 <em>(Optional)</em>
-<p>Domains contains information about which domains shall be included/excluded for this provider.
-Deprecated: This field is deprecated and will be removed in a future release.
+<p>Domains contains information about which domains shall be included/excluded for this provider.</p>
+<p>Deprecated: This field is deprecated and will be removed in a future release.
 Please use the DNS extension provider config (e.g. shoot-dns-service) for additional configuration.</p>
 </td>
 </tr>
@@ -4551,8 +4536,8 @@ bool
 </td>
 <td>
 <em>(Optional)</em>
-<p>Primary indicates that this DNSProvider is used for shoot related domains.
-Deprecated: This field is deprecated and will be removed in a future release.
+<p>Primary indicates that this DNSProvider is used for shoot related domains.</p>
+<p>Deprecated: This field is deprecated and will be removed in a future release.
 Please use the DNS extension provider config (e.g. shoot-dns-service) for additional and non-primary providers.</p>
 </td>
 </tr>
@@ -4594,8 +4579,8 @@ DNSIncludeExclude
 </td>
 <td>
 <em>(Optional)</em>
-<p>Zones contains information about which hosted zones shall be included/excluded for this provider.
-Deprecated: This field is deprecated and will be removed in a future release.
+<p>Zones contains information about which hosted zones shall be included/excluded for this provider.</p>
+<p>Deprecated: This field is deprecated and will be removed in a future release.
 Please use the DNS extension provider config (e.g. shoot-dns-service) for additional configuration.</p>
 </td>
 </tr>
@@ -4822,7 +4807,7 @@ Kubernetes meta/v1.Time
 </td>
 <td>
 <em>(Optional)</em>
-<p>LastInitiationFinishedTime is the recent time when the certificate authority credential rotation initiation was
+<p>LastInitiationFinishedTime is the recent time when the ETCD encryption key credential rotation initiation was
 completed.</p>
 </td>
 </tr>
@@ -4837,7 +4822,7 @@ Kubernetes meta/v1.Time
 </td>
 <td>
 <em>(Optional)</em>
-<p>LastCompletionTriggeredTime is the recent time when the certificate authority credential rotation completion was
+<p>LastCompletionTriggeredTime is the recent time when the ETCD encryption key credential rotation completion was
 triggered.</p>
 </td>
 </tr>
@@ -5918,6 +5903,21 @@ EncryptionConfig
 <p>EncryptionConfig contains customizable encryption configuration of the Kube API server.</p>
 </td>
 </tr>
+<tr>
+<td>
+<code>structuredAuthentication</code></br>
+<em>
+<a href="#core.gardener.cloud/v1beta1.StructuredAuthentication">
+StructuredAuthentication
+</a>
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>StructuredAuthentication contains configuration settings for structured authentication to the kube-apiserver.
+This field is only available for Kubernetes v1.30 or later.</p>
+</td>
+</tr>
 </tbody>
 </table>
 <h3 id="core.gardener.cloud/v1beta1.KubeControllerManagerConfig">KubeControllerManagerConfig
@@ -6366,10 +6366,10 @@ KubeletConfigReserved
 <td>
 <em>(Optional)</em>
 <p>SystemReserved is the configuration for resources reserved for system processes not managed by kubernetes (e.g. journald).
-When updating these values, be aware that cgroup resizes may not succeed on active worker nodes. Look for the NodeAllocatableEnforced event to determine if the configuration was applied.
-Deprecated: Separately configuring resource reservations for system processes is deprecated in Gardener and will be removed soon.
+When updating these values, be aware that cgroup resizes may not succeed on active worker nodes. Look for the NodeAllocatableEnforced event to determine if the configuration was applied.</p>
+<p>Deprecated: Separately configuring resource reservations for system processes is deprecated in Gardener and will be forbidden starting from Kubernetes 1.31.
 Please merge existing resource reservations into the kubeReserved field.
-TODO(MichaelEischer): Drop this field after v1.113 has been released.</p>
+TODO(MichaelEischer): Drop this field after support for Kubernetes 1.30 is dropped.</p>
 </td>
 </tr>
 <tr>
@@ -8196,20 +8196,6 @@ KubernetesSettings
 </tr>
 <tr>
 <td>
-<code>regions</code></br>
-<em>
-<a href="#core.gardener.cloud/v1beta1.Region">
-[]Region
-</a>
-</em>
-</td>
-<td>
-<em>(Optional)</em>
-<p>Regions contains constraints regarding allowed values for regions and zones.</p>
-</td>
-</tr>
-<tr>
-<td>
 <code>volumeTypes</code></br>
 <em>
 <a href="#core.gardener.cloud/v1beta1.VolumeType">
@@ -8276,7 +8262,7 @@ int64
 </td>
 <td>
 <em>(Optional)</em>
-<p>ObservedGeneration is the most recent generation observed for this project.</p>
+<p>ObservedGeneration is the most recent generation observed for this NamespacedCloudProfile.</p>
 </td>
 </tr>
 </tbody>
@@ -8686,6 +8672,9 @@ OpenIDConnectClientAuthentication
 <td>
 <em>(Optional)</em>
 <p>ClientAuthentication can optionally contain client configuration used for kubeconfig generation.</p>
+<p>Deprecated: This field has no implemented use and will be forbidden starting from Kubernetes 1.31.
+It&rsquo;s use was planned for genereting OIDC kubeconfig <a href="https://github.com/gardener/gardener/issues/1433">https://github.com/gardener/gardener/issues/1433</a>
+TODO(AleksandarSavchev): Drop this field after support for Kubernetes 1.30 is dropped.</p>
 </td>
 </tr>
 <tr>
@@ -8697,7 +8686,7 @@ string
 </td>
 <td>
 <em>(Optional)</em>
-<p>The client ID for the OpenID Connect client, must be set if oidc-issuer-url is set.</p>
+<p>The client ID for the OpenID Connect client, must be set.</p>
 </td>
 </tr>
 <tr>
@@ -8733,7 +8722,7 @@ string
 </td>
 <td>
 <em>(Optional)</em>
-<p>The URL of the OpenID issuer, only HTTPS scheme will be accepted. If set, it will be used to verify the OIDC JSON Web Token (JWT).</p>
+<p>The URL of the OpenID issuer, only HTTPS scheme will be accepted. Used to verify the OIDC JSON Web Token (JWT).</p>
 </td>
 </tr>
 <tr>
@@ -9372,7 +9361,7 @@ Kubernetes core/v1.ObjectReference
 </em>
 </td>
 <td>
-<p>Scope is the scope of the Quota object, either &lsquo;project&rsquo; or &lsquo;secret&rsquo;. This field is immutable.</p>
+<p>Scope is the scope of the Quota object, either &lsquo;project&rsquo;, &lsquo;secret&rsquo; or &lsquo;workloadidentity&rsquo;. This field is immutable.</p>
 </td>
 </tr>
 </tbody>
@@ -9381,8 +9370,7 @@ Kubernetes core/v1.ObjectReference
 </h3>
 <p>
 (<em>Appears on:</em>
-<a href="#core.gardener.cloud/v1beta1.CloudProfileSpec">CloudProfileSpec</a>, 
-<a href="#core.gardener.cloud/v1beta1.NamespacedCloudProfileSpec">NamespacedCloudProfileSpec</a>)
+<a href="#core.gardener.cloud/v1beta1.CloudProfileSpec">CloudProfileSpec</a>)
 </p>
 <p>
 <p>Region contains certain properties of a region.</p>
@@ -11249,7 +11237,7 @@ Kubernetes meta/v1.Time
 </td>
 <td>
 <em>(Optional)</em>
-<p>LastInitiationFinishedTime is the recent time when the certificate authority credential rotation initiation was
+<p>LastInitiationFinishedTime is the recent time when the service account key credential rotation initiation was
 completed.</p>
 </td>
 </tr>
@@ -11264,7 +11252,7 @@ Kubernetes meta/v1.Time
 </td>
 <td>
 <em>(Optional)</em>
-<p>LastCompletionTriggeredTime is the recent time when the certificate authority credential rotation completion was
+<p>LastCompletionTriggeredTime is the recent time when the service account key credential rotation completion was
 triggered.</p>
 </td>
 </tr>
@@ -11980,8 +11968,7 @@ string
 <td>
 <em>(Optional)</em>
 <p>CredentialsBindingName is the name of the a CredentialsBinding that has a reference to the provider credentials.
-The credentials will be used to create the shoot in the respective account. The field is mutually exclusive with SecretBindingName.
-This field is immutable.</p>
+The credentials will be used to create the shoot in the respective account. The field is mutually exclusive with SecretBindingName.</p>
 </td>
 </tr>
 </tbody>
@@ -12680,11 +12667,41 @@ string
 <td>
 <em>(Optional)</em>
 <p>CredentialsBindingName is the name of the a CredentialsBinding that has a reference to the provider credentials.
-The credentials will be used to create the shoot in the respective account. The field is mutually exclusive with SecretBindingName.
-This field is immutable.</p>
+The credentials will be used to create the shoot in the respective account. The field is mutually exclusive with SecretBindingName.</p>
 </td>
 </tr>
 </table>
+</td>
+</tr>
+</tbody>
+</table>
+<h3 id="core.gardener.cloud/v1beta1.StructuredAuthentication">StructuredAuthentication
+</h3>
+<p>
+(<em>Appears on:</em>
+<a href="#core.gardener.cloud/v1beta1.KubeAPIServerConfig">KubeAPIServerConfig</a>)
+</p>
+<p>
+<p>StructuredAuthentication contains authentication config for kube-apiserver.</p>
+</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<code>configMapName</code></br>
+<em>
+string
+</em>
+</td>
+<td>
+<p>ConfigMapName is the name of the ConfigMap in the project namespace
+which contains AuthenticationConfiguration for the kube-apiserver.</p>
 </td>
 </tr>
 </tbody>

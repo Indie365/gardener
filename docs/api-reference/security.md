@@ -85,7 +85,8 @@ Kubernetes core/v1.ObjectReference
 </td>
 <td>
 <p>CredentialsRef is a reference to a resource holding the credentials.
-Accepted resources are core/v1.Secret and security.gardener.cloud/v1alpha1.WorkloadIdentity</p>
+Accepted resources are core/v1.Secret and security.gardener.cloud/v1alpha1.WorkloadIdentity
+This field is immutable.</p>
 </td>
 </tr>
 <tr>
@@ -528,7 +529,7 @@ Kubernetes meta/v1.Time
 </em>
 </td>
 <td>
-<p>ExpirationTimeStamp is the time of expiration of the returned token.</p>
+<p>ExpirationTimestamp is the time of expiration of the returned token.</p>
 </td>
 </tr>
 </tbody>

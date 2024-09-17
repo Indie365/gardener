@@ -660,21 +660,21 @@ var _ = Describe("Shoot Validation Tests", func() {
 		})
 
 		It("should allow external traffic policies 'Cluster' for nginx-ingress", func() {
-			v := corev1.ServiceExternalTrafficPolicyTypeCluster
+			v := corev1.ServiceExternalTrafficPolicyCluster
 			shoot.Spec.Addons.NginxIngress.ExternalTrafficPolicy = &v
 			errorList := ValidateShoot(shoot)
 			Expect(errorList).To(BeEmpty())
 		})
 
 		It("should allow external traffic policies 'Local' for nginx-ingress", func() {
-			v := corev1.ServiceExternalTrafficPolicyTypeLocal
+			v := corev1.ServiceExternalTrafficPolicyLocal
 			shoot.Spec.Addons.NginxIngress.ExternalTrafficPolicy = &v
 			errorList := ValidateShoot(shoot)
 			Expect(errorList).To(BeEmpty())
 		})
 
 		It("should forbid unsupported external traffic policies for nginx-ingress", func() {
-			v := corev1.ServiceExternalTrafficPolicyType("something-else")
+			v := corev1.ServiceExternalTrafficPolicy("something-else")
 			shoot.Spec.Addons.NginxIngress.ExternalTrafficPolicy = &v
 
 			errorList := ValidateShoot(shoot)
@@ -893,7 +893,7 @@ var _ = Describe("Shoot Validation Tests", func() {
 			))
 		})
 
-		It("should forbid updating credentialsBindingName when not migrating to secretBindingName", func() {
+		It("should allow updating credentialsBindingName", func() {
 			shoot.Spec.SecretBindingName = nil
 			shoot.Spec.CredentialsBindingName = ptr.To("foo")
 			newShoot := prepareShootForUpdate(shoot)
@@ -901,12 +901,7 @@ var _ = Describe("Shoot Validation Tests", func() {
 
 			errorList := ValidateShootUpdate(newShoot, shoot)
 
-			Expect(errorList).To(ConsistOf(
-				PointTo(MatchFields(IgnoreExtras, Fields{
-					"Type":  Equal(field.ErrorTypeInvalid),
-					"Field": Equal("spec.credentialsBindingName"),
-				})),
-			))
+			Expect(errorList).To(BeEmpty())
 		})
 
 		It("should allow switching from secretBindingName to credentialsBindingName", func() {
@@ -919,7 +914,7 @@ var _ = Describe("Shoot Validation Tests", func() {
 			Expect(errorList).To(BeEmpty())
 		})
 
-		It("should allow switching from credentialsBindingName to secretBindingName", func() {
+		It("should not allow switching from credentialsBindingName to secretBindingName", func() {
 			shoot.Spec.SecretBindingName = nil
 			shoot.Spec.CredentialsBindingName = ptr.To("another-reference")
 			newShoot := prepareShootForUpdate(shoot)
@@ -928,7 +923,18 @@ var _ = Describe("Shoot Validation Tests", func() {
 
 			errorList := ValidateShootUpdate(newShoot, shoot)
 
-			Expect(errorList).To(BeEmpty())
+			Expect(errorList).To(ConsistOf(
+				PointTo(MatchFields(IgnoreExtras, Fields{
+					"Type":   Equal(field.ErrorTypeInvalid),
+					"Field":  Equal("spec.secretBindingName"),
+					"Detail": Equal("field is immutable"),
+				})),
+				PointTo(MatchFields(IgnoreExtras, Fields{
+					"Type":   Equal(field.ErrorTypeForbidden),
+					"Field":  Equal("spec.credentialsBindingName"),
+					"Detail": Equal("the field cannot be unset"),
+				})),
+			))
 		})
 
 		Context("seed selector", func() {
@@ -1851,6 +1857,19 @@ var _ = Describe("Shoot Validation Tests", func() {
 					Entry("should add error if issuerURL is set but clientID is nil", 1, nil),
 					Entry("should add error if issuerURL is set but clientID is empty string ", 2, ptr.To("")),
 				)
+
+				It("should forbid setting clinetAuthentication from kubernetes version 1.31", func() {
+					shoot.Spec.Kubernetes.KubeAPIServer.OIDCConfig.ClientAuthentication = &core.OpenIDConnectClientAuthentication{}
+					shoot.Spec.Kubernetes.Version = "1.31"
+
+					errorList := ValidateShoot(shoot)
+
+					Expect(errorList).To(HaveLen(1))
+					Expect(*errorList[0]).To(MatchFields(IgnoreExtras, Fields{
+						"Type":  Equal(field.ErrorTypeInvalid),
+						"Field": Equal("spec.kubernetes.kubeAPIServer.oidcConfig.clientAuthentication"),
+					}))
+				})
 			})
 
 			Context("admission plugin validation", func() {
@@ -3061,6 +3080,72 @@ var _ = Describe("Shoot Validation Tests", func() {
 				errorList := ValidateShoot(shoot)
 
 				Expect(errorList).To(BeEmpty())
+			})
+		})
+
+		Context("Authentication validation", func() {
+			It("should forbid for version < v1.30", func() {
+				shoot.Spec.Kubernetes.Version = "v1.29.0"
+				shoot.Spec.Kubernetes.KubeAPIServer.OIDCConfig = nil
+				shoot.Spec.Kubernetes.KubeAPIServer.StructuredAuthentication = &core.StructuredAuthentication{
+					ConfigMapName: "foo",
+				}
+				errorList := ValidateShoot(shoot)
+
+				Expect(errorList).ToNot(BeEmpty())
+				Expect(errorList).To(ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{
+					"Type":   Equal(field.ErrorTypeForbidden),
+					"Field":  Equal("spec.kubernetes.kubeAPIServer.structuredAuthentication"),
+					"Detail": Equal("is available for Kubernetes versions >= v1.30"),
+				}))))
+			})
+
+			It("should forbid empty name", func() {
+				shoot.Spec.Kubernetes.Version = "v1.30.0"
+				shoot.Spec.Kubernetes.KubeAPIServer.OIDCConfig = nil
+				shoot.Spec.Kubernetes.KubeAPIServer.StructuredAuthentication = &core.StructuredAuthentication{}
+				errorList := ValidateShoot(shoot)
+
+				Expect(errorList).ToNot(BeEmpty())
+				Expect(errorList).To(ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{
+					"Type":   Equal(field.ErrorTypeForbidden),
+					"Field":  Equal("spec.kubernetes.kubeAPIServer.structuredAuthentication.configMapName"),
+					"Detail": Equal("must provide a name"),
+				}))))
+			})
+
+			It("should forbid setting structured authentication when feature gate is disabled", func() {
+				shoot.Spec.Kubernetes.Version = "v1.30.0"
+				shoot.Spec.Kubernetes.KubeAPIServer.OIDCConfig = nil
+				shoot.Spec.Kubernetes.KubeAPIServer.StructuredAuthentication = &core.StructuredAuthentication{
+					ConfigMapName: "foo",
+				}
+				shoot.Spec.Kubernetes.KubeAPIServer.FeatureGates = map[string]bool{
+					"StructuredAuthenticationConfiguration": false,
+				}
+				errorList := ValidateShoot(shoot)
+
+				Expect(errorList).ToNot(BeEmpty())
+				Expect(errorList).To(ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{
+					"Type":   Equal(field.ErrorTypeForbidden),
+					"Field":  Equal("spec.kubernetes.kubeAPIServer.structuredAuthentication"),
+					"Detail": Equal("requires feature gate StructuredAuthenticationConfiguration to be enabled"),
+				}))))
+			})
+
+			It("should forbid setting both oidcConfig and structured authentication", func() {
+				shoot.Spec.Kubernetes.Version = "v1.30.0"
+				shoot.Spec.Kubernetes.KubeAPIServer.StructuredAuthentication = &core.StructuredAuthentication{
+					ConfigMapName: "foo",
+				}
+				errorList := ValidateShoot(shoot)
+
+				Expect(errorList).ToNot(BeEmpty())
+				Expect(errorList).To(ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{
+					"Type":   Equal(field.ErrorTypeForbidden),
+					"Field":  Equal("spec.kubernetes.kubeAPIServer.oidcConfig"),
+					"Detail": Equal("is incompatible with structuredAuthentication"),
+				}))))
 			})
 		})
 
@@ -6494,7 +6579,7 @@ var _ = Describe("Shoot Validation Tests", func() {
 			)
 
 			DescribeTable("SystemReserved",
-				func(cpu, memory, ephemeralStorage, pid *resource.Quantity, matcher gomegatypes.GomegaMatcher) {
+				func(cpu, memory, ephemeralStorage, pid *resource.Quantity, k8sVersion string, matcher gomegatypes.GomegaMatcher) {
 					kubeletConfig := core.KubeletConfig{
 						SystemReserved: &core.KubeletConfigReserved{
 							CPU:              cpu,
@@ -6503,17 +6588,21 @@ var _ = Describe("Shoot Validation Tests", func() {
 							PID:              pid,
 						},
 					}
-					Expect(ValidateKubeletConfig(kubeletConfig, "", nil)).To(matcher)
+					Expect(ValidateKubeletConfig(kubeletConfig, k8sVersion, nil)).To(matcher)
 				},
 
-				Entry("valid configuration (cpu)", &validResourceQuantity, nil, nil, nil, BeEmpty()),
-				Entry("valid configuration (memory)", nil, &validResourceQuantity, nil, nil, BeEmpty()),
-				Entry("valid configuration (storage)", nil, nil, &validResourceQuantity, nil, BeEmpty()),
-				Entry("valid configuration (pid)", nil, nil, nil, &validResourceQuantity, BeEmpty()),
-				Entry("valid configuration (all)", &validResourceQuantity, &validResourceQuantity, &validResourceQuantity, &validResourceQuantity, BeEmpty()),
-				Entry("only allow positive resource.Quantity for any value", &invalidResourceQuantity, &validResourceQuantity, &validResourceQuantity, &validResourceQuantity, ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{
+				Entry("valid configuration (cpu)", &validResourceQuantity, nil, nil, nil, "1.30.0", BeEmpty()),
+				Entry("valid configuration (memory)", nil, &validResourceQuantity, nil, nil, "1.30.0", BeEmpty()),
+				Entry("valid configuration (storage)", nil, nil, &validResourceQuantity, nil, "1.30.0", BeEmpty()),
+				Entry("valid configuration (pid)", nil, nil, nil, &validResourceQuantity, "1.30.0", BeEmpty()),
+				Entry("valid configuration (all)", &validResourceQuantity, &validResourceQuantity, &validResourceQuantity, &validResourceQuantity, "1.30.0", BeEmpty()),
+				Entry("only allow positive resource.Quantity for any value", &invalidResourceQuantity, &validResourceQuantity, &validResourceQuantity, &validResourceQuantity, "1.30.0", ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{
 					"Type":  Equal(field.ErrorTypeInvalid),
 					"Field": Equal(field.NewPath("systemReserved.cpu").String()),
+				})))),
+				Entry("forbid string from kubernetes version 1.31", &validResourceQuantity, &validResourceQuantity, &validResourceQuantity, &validResourceQuantity, "1.31.0", ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{
+					"Type":  Equal(field.ErrorTypeInvalid),
+					"Field": Equal(field.NewPath("systemReserved").String()),
 				})))),
 			)
 		})

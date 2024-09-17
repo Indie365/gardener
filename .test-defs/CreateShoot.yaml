@@ -15,10 +15,9 @@ spec:
     --v -ginkgo.v -ginkgo.show-node-events -ginkgo.no-color
     -verbose=debug
     -kubecfg=$TM_KUBECONFIG_PATH/gardener.config
-    -seed-kubecfg-path=$TM_KUBECONFIG_PATH/seed.config
     -shoot-kubecfg-path=$TM_KUBECONFIG_PATH/shoot.config
     -shoot-name=$SHOOT_NAME
-    -cloud-profile=$CLOUDPROFILE
+    -cloud-profile-name=$CLOUDPROFILE
     -seed=$SEED
     -secret-binding=$SECRET_BINDING
     -provider-type=$PROVIDER_TYPE
@@ -42,4 +41,4 @@ spec:
 #    -machine-type=$MACHINE_TYPE
 #    -external-domain=
 
-  image: golang:1.22.6
+  image: golang:1.23.1

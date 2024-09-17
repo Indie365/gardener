@@ -2544,6 +2544,24 @@ var _ = Describe("Helper", func() {
 		}, &corev1.ObjectReference{Name: "foo"})
 	})
 
+	DescribeTable("#GetShootAuthenticationConfigurationConfigMapName",
+		func(kubeAPIServerConfig *gardencorev1beta1.KubeAPIServerConfig, expectedName string) {
+			authConfigName := GetShootAuthenticationConfigurationConfigMapName(kubeAPIServerConfig)
+			Expect(authConfigName).To(Equal(expectedName))
+		},
+
+		Entry("KubeAPIServerConfig = nil", nil, ""),
+		Entry("StructuredAuthentication = nil", &gardencorev1beta1.KubeAPIServerConfig{}, ""),
+		Entry("ConfigMapName not set", &gardencorev1beta1.KubeAPIServerConfig{
+			StructuredAuthentication: &gardencorev1beta1.StructuredAuthentication{},
+		}, ""),
+		Entry("ConfigMapName set", &gardencorev1beta1.KubeAPIServerConfig{
+			StructuredAuthentication: &gardencorev1beta1.StructuredAuthentication{
+				ConfigMapName: "foo",
+			},
+		}, "foo"),
+	)
+
 	Describe("#CalculateSeedUsage", func() {
 		type shootCase struct {
 			specSeedName, statusSeedName string

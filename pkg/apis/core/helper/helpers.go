@@ -49,7 +49,10 @@ func QuotaScope(scopeRef corev1.ObjectReference) (string, error) {
 		return "project", nil
 	}
 	if scopeRef.APIVersion == "v1" && scopeRef.Kind == "Secret" {
-		return "secret", nil
+		return "credentials", nil
+	}
+	if gvk := schema.FromAPIVersionAndKind(scopeRef.APIVersion, scopeRef.Kind); gvk.Group == "security.gardener.cloud" && gvk.Kind == "WorkloadIdentity" {
+		return "credentials", nil
 	}
 	return "", errors.New("unknown quota scope")
 }
@@ -263,13 +266,13 @@ func FindWorkerByName(workers []core.Worker, name string) *core.Worker {
 }
 
 // GetRemovedVersions finds versions that have been removed in the old compared to the new version slice.
-// returns a map associating the version with its index in the in the old version slice.
+// returns a map associating the version with its index in the old version slice.
 func GetRemovedVersions(old, new []core.ExpirableVersion) map[string]int {
 	return getVersionDiff(old, new)
 }
 
 // GetAddedVersions finds versions that have been added in the new compared to the new version slice.
-// returns a map associating the version with its index in the in the old version slice.
+// returns a map associating the version with its index in the old version slice.
 func GetAddedVersions(old, new []core.ExpirableVersion) map[string]int {
 	return getVersionDiff(new, old)
 }
@@ -338,6 +341,15 @@ func GetShootAuditPolicyConfigMapRef(apiServerConfig *core.KubeAPIServerConfig) 
 		return apiServerConfig.AuditConfig.AuditPolicy.ConfigMapRef
 	}
 	return nil
+}
+
+// GetShootAuthenticationConfigurationConfigMapName returns the Shoot's ConfigMap reference name for the aithentication configuration.
+func GetShootAuthenticationConfigurationConfigMapName(apiServerConfig *core.KubeAPIServerConfig) string {
+	if apiServerConfig != nil &&
+		apiServerConfig.StructuredAuthentication != nil {
+		return apiServerConfig.StructuredAuthentication.ConfigMapName
+	}
+	return ""
 }
 
 // HibernationIsEnabled checks if the given shoot's desired state is hibernated.

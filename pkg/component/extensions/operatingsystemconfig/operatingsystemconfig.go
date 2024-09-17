@@ -131,6 +131,8 @@ type OriginalValues struct {
 	// KubeletConfig is the default kubelet configuration for all worker pools. Individual worker pools might overwrite
 	// this configuration.
 	KubeletConfig *gardencorev1beta1.KubeletConfig
+	// KubeProxyEnabled indicates whether kube-proxy is enabled or not.
+	KubeProxyEnabled bool
 	// MachineTypes is a list of machine types.
 	MachineTypes []gardencorev1beta1.MachineType
 	// SSHPublicKeys is a list of public SSH keys.
@@ -735,6 +737,7 @@ func (o *operatingSystemConfig) newDeployer(version int, osc *extensionsv1alpha1
 		kubeletConfigParameters: kubeletConfigParameters,
 		kubeletCLIFlags:         kubeletCLIFlags,
 		kubeletDataVolumeName:   worker.KubeletDataVolumeName,
+		kubeProxyEnabled:        o.values.KubeProxyEnabled,
 		kubernetesVersion:       kubernetesVersion,
 		sshPublicKeys:           o.values.SSHPublicKeys,
 		sshAccessEnabled:        o.values.SSHAccessEnabled,
@@ -800,6 +803,7 @@ type deployer struct {
 	kubeletConfigParameters components.ConfigurableKubeletConfigParameters
 	kubeletCLIFlags         components.ConfigurableKubeletCLIFlags
 	kubeletDataVolumeName   *string
+	kubeProxyEnabled        bool
 	kubernetesVersion       *semver.Version
 	sshPublicKeys           []string
 	sshAccessEnabled        bool
@@ -839,6 +843,7 @@ func (d *deployer) deploy(ctx context.Context, operation string) (extensionsv1al
 		KubeletConfigParameters: d.kubeletConfigParameters,
 		KubeletCLIFlags:         d.kubeletCLIFlags,
 		KubeletDataVolumeName:   d.kubeletDataVolumeName,
+		KubeProxyEnabled:        d.kubeProxyEnabled,
 		KubernetesVersion:       d.kubernetesVersion,
 		SSHPublicKeys:           d.sshPublicKeys,
 		SSHAccessEnabled:        d.sshAccessEnabled,
@@ -1020,8 +1025,8 @@ func KeyV2(
 	}
 
 	if kubeletConfiguration != nil {
-		if kubeReserved := kubeletConfiguration.KubeReserved; kubeReserved != nil {
-			data = append(data, fmt.Sprintf("%s-%s-%s-%s", kubeReserved.CPU, kubeReserved.Memory, kubeReserved.PID, kubeReserved.EphemeralStorage))
+		if resources := mergeResourceReservations(kubeletConfiguration.KubeReserved, kubeletConfiguration.SystemReserved); resources != nil {
+			data = append(data, fmt.Sprintf("%s-%s-%s-%s", resources.CPU, resources.Memory, resources.PID, resources.EphemeralStorage))
 		}
 		if eviction := kubeletConfiguration.EvictionHard; eviction != nil {
 			data = append(data, fmt.Sprintf("%s-%s-%s-%s-%s",
@@ -1043,6 +1048,35 @@ func KeyV2(
 	}
 
 	return fmt.Sprintf("gardener-node-agent-%s-%s", worker.Name, utils.ComputeSHA256Hex([]byte(result))[:16])
+}
+
+// mergeResourceReservations combines kubeReserved + systemReserved as both values are effectively
+// added together when kubelet applies the resource reservations
+func mergeResourceReservations(kubeReserved, systemReserved *gardencorev1beta1.KubeletConfigReserved) *gardencorev1beta1.KubeletConfigReserved {
+	if kubeReserved == nil {
+		return systemReserved
+	} else if systemReserved == nil {
+		return kubeReserved
+	}
+
+	return &gardencorev1beta1.KubeletConfigReserved{
+		CPU:              mergeQuantities(kubeReserved.CPU, systemReserved.CPU),
+		Memory:           mergeQuantities(kubeReserved.Memory, systemReserved.Memory),
+		PID:              mergeQuantities(kubeReserved.PID, systemReserved.PID),
+		EphemeralStorage: mergeQuantities(kubeReserved.EphemeralStorage, systemReserved.EphemeralStorage),
+	}
+}
+
+func mergeQuantities(first, second *resource.Quantity) *resource.Quantity {
+	if first == nil {
+		return second
+	} else if second == nil {
+		return first
+	} else {
+		copy := first.DeepCopy()
+		copy.Add(*second)
+		return &copy
+	}
 }
 
 func keySuffix(version int, machineImageName string, purpose extensionsv1alpha1.OperatingSystemConfigPurpose) string {

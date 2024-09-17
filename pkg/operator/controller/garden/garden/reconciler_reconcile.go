@@ -13,6 +13,7 @@ import (
 
 	"github.com/Masterminds/semver/v3"
 	"github.com/go-logr/logr"
+	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	monitoringv1alpha1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
@@ -46,6 +47,7 @@ import (
 	kubeapiserver "github.com/gardener/gardener/pkg/component/kubernetes/apiserver"
 	"github.com/gardener/gardener/pkg/component/observability/monitoring/prometheus"
 	gardenprometheus "github.com/gardener/gardener/pkg/component/observability/monitoring/prometheus/garden"
+	monitoringutils "github.com/gardener/gardener/pkg/component/observability/monitoring/utils"
 	"github.com/gardener/gardener/pkg/component/shared"
 	"github.com/gardener/gardener/pkg/controllerutils"
 	gardenletconfig "github.com/gardener/gardener/pkg/gardenlet/apis/config"
@@ -119,6 +121,13 @@ func (r *Reconciler) reconcile(
 		return reconcile.Result{}, err
 	}
 
+	const (
+		secretsTypeKey                 = "secretsType"
+		secretsTypeGardenAccess        = "garden access"
+		secretsTypeWorkloadIdentity    = "workload identity"
+		secretsTypeGardenletKubeconfig = "gardenlet kubeconfig" // #nosec G101 -- No credential.
+	)
+
 	var (
 		allowBackup             = garden.Spec.VirtualCluster.ETCD != nil && garden.Spec.VirtualCluster.ETCD.Main != nil && garden.Spec.VirtualCluster.ETCD.Main.Backup != nil
 		virtualClusterClientSet kubernetes.Interface
@@ -167,6 +176,20 @@ func (r *Reconciler) reconcile(
 			Fn:   c.prometheusCRD.Deploy,
 		})
 
+		_ = g.Add(flow.Task{
+			Name: "Deploying VPA for gardener-operator",
+			Fn: func(ctx context.Context) error {
+				return gardenerutils.ReconcileVPAForGardenerComponent(ctx, r.RuntimeClientSet.Client(), v1beta1constants.DeploymentNameGardenerOperator, r.GardenNamespace)
+			},
+			Dependencies: flow.NewTaskIDs(deployVPACRD),
+		})
+		_ = g.Add(flow.Task{
+			Name: "Deploying ServiceMonitor for gardener-operator",
+			Fn: func(ctx context.Context) error {
+				return r.deployOperatorServiceMonitor(ctx)
+			},
+			Dependencies: flow.NewTaskIDs(deployPrometheusCRD),
+		})
 		deployGardenerResourceManager = g.Add(flow.Task{
 			Name:         "Deploying and waiting for gardener-resource-manager to be healthy",
 			Fn:           component.OpWait(c.gardenerResourceManager).Deploy,
@@ -357,7 +380,7 @@ func (r *Reconciler) reconcile(
 		renewGardenAccessSecretsInAllSeeds = g.Add(flow.Task{
 			Name: "Label seeds to trigger renewal of their garden access secrets",
 			Fn: flow.TaskFn(func(ctx context.Context) error {
-				return secretsrotation.RenewGardenSecretsInAllSeeds(ctx, log, virtualClusterClient, v1beta1constants.SeedOperationRenewGardenAccessSecrets)
+				return secretsrotation.RenewGardenSecretsInAllSeeds(ctx, log.WithValues(secretsTypeKey, secretsTypeGardenAccess), virtualClusterClient, v1beta1constants.SeedOperationRenewGardenAccessSecrets)
 			}).RetryUntilTimeout(5*time.Second, 30*time.Second),
 			SkipIf:       helper.GetServiceAccountKeyRotationPhase(garden.Status.Credentials) != gardencorev1beta1.RotationPreparing,
 			Dependencies: flow.NewTaskIDs(initializeVirtualClusterClient),
@@ -365,15 +388,31 @@ func (r *Reconciler) reconcile(
 		checkIfGardenAccessSecretsRenewalCompletedInAllSeeds = g.Add(flow.Task{
 			Name: "Check if all seeds finished the renewal of their garden access secrets",
 			Fn: flow.TaskFn(func(ctx context.Context) error {
-				return secretsrotation.CheckIfGardenSecretsRenewalCompletedInAllSeeds(ctx, virtualClusterClient, v1beta1constants.SeedOperationRenewGardenAccessSecrets)
+				return secretsrotation.CheckIfGardenSecretsRenewalCompletedInAllSeeds(ctx, virtualClusterClient, v1beta1constants.SeedOperationRenewGardenAccessSecrets, secretsTypeGardenAccess)
 			}).RetryUntilTimeout(5*time.Second, 2*time.Minute),
 			SkipIf:       helper.GetServiceAccountKeyRotationPhase(garden.Status.Credentials) != gardencorev1beta1.RotationPreparing,
 			Dependencies: flow.NewTaskIDs(renewGardenAccessSecretsInAllSeeds),
 		})
+		renewWorkloadIdentityTokensInAllSeeds = g.Add(flow.Task{
+			Name: "Annotate seeds to trigger renewal of workload identity tokens",
+			Fn: flow.TaskFn(func(ctx context.Context) error {
+				return secretsrotation.RenewGardenSecretsInAllSeeds(ctx, log.WithValues(secretsTypeKey, secretsTypeWorkloadIdentity), virtualClusterClient, v1beta1constants.SeedOperationRenewWorkloadIdentityTokens)
+			}).RetryUntilTimeout(5*time.Second, 30*time.Second),
+			SkipIf:       helper.GetWorkloadIdentityKeyRotationPhase(garden.Status.Credentials) != gardencorev1beta1.RotationPreparing,
+			Dependencies: flow.NewTaskIDs(initializeVirtualClusterClient, waitUntilGardenerAPIServerReady),
+		})
+		_ = g.Add(flow.Task{
+			Name: "Check if all seeds finished the renewal of their workload identity tokens",
+			Fn: flow.TaskFn(func(ctx context.Context) error {
+				return secretsrotation.CheckIfGardenSecretsRenewalCompletedInAllSeeds(ctx, virtualClusterClient, v1beta1constants.SeedOperationRenewWorkloadIdentityTokens, secretsTypeWorkloadIdentity)
+			}).RetryUntilTimeout(5*time.Second, 2*time.Minute),
+			SkipIf:       helper.GetWorkloadIdentityKeyRotationPhase(garden.Status.Credentials) != gardencorev1beta1.RotationPreparing,
+			Dependencies: flow.NewTaskIDs(renewWorkloadIdentityTokensInAllSeeds),
+		})
 		renewGardenletKubeconfigInAllSeeds = g.Add(flow.Task{
 			Name: "Label seeds to trigger renewal of their gardenlet kubeconfig",
 			Fn: flow.TaskFn(func(ctx context.Context) error {
-				return secretsrotation.RenewGardenSecretsInAllSeeds(ctx, log, virtualClusterClient, v1beta1constants.GardenerOperationRenewKubeconfig)
+				return secretsrotation.RenewGardenSecretsInAllSeeds(ctx, log.WithValues(secretsTypeKey, secretsTypeGardenletKubeconfig), virtualClusterClient, v1beta1constants.GardenerOperationRenewKubeconfig)
 			}).RetryUntilTimeout(5*time.Second, 30*time.Second),
 			SkipIf:       helper.GetCARotationPhase(garden.Status.Credentials) != gardencorev1beta1.RotationPreparing,
 			Dependencies: flow.NewTaskIDs(checkIfGardenAccessSecretsRenewalCompletedInAllSeeds),
@@ -381,7 +420,7 @@ func (r *Reconciler) reconcile(
 		_ = g.Add(flow.Task{
 			Name: "Check if all seeds finished the renewal of their gardenlet kubeconfig",
 			Fn: flow.TaskFn(func(ctx context.Context) error {
-				return secretsrotation.CheckIfGardenSecretsRenewalCompletedInAllSeeds(ctx, virtualClusterClient, v1beta1constants.GardenerOperationRenewKubeconfig)
+				return secretsrotation.CheckIfGardenSecretsRenewalCompletedInAllSeeds(ctx, virtualClusterClient, v1beta1constants.GardenerOperationRenewKubeconfig, secretsTypeGardenletKubeconfig)
 			}).RetryUntilTimeout(5*time.Second, 2*time.Minute),
 			SkipIf:       helper.GetCARotationPhase(garden.Status.Credentials) != gardencorev1beta1.RotationPreparing,
 			Dependencies: flow.NewTaskIDs(renewGardenletKubeconfigInAllSeeds),
@@ -681,6 +720,7 @@ func (r *Reconciler) deployGardenerAPIServerFunc(garden *operatorv1alpha1.Garden
 			getGardenerResourcesForEncryption(garden),
 			utils.FilterEntriesByFilterFn(garden.Status.EncryptedResources, gardenerutils.IsServedByGardenerAPIServer),
 			helper.GetETCDEncryptionKeyRotationPhase(garden.Status.Credentials),
+			helper.GetWorkloadIdentityKeyRotationPhase(garden.Status.Credentials),
 		)
 	}
 }
@@ -733,6 +773,33 @@ func (r *Reconciler) deployGardenPrometheus(ctx context.Context, log logr.Logger
 
 	prometheus.SetCentralScrapeConfigs(gardenprometheus.CentralScrapeConfigs(prometheusAggregateTargets, globalMonitoringSecretRuntime))
 	return prometheus.Deploy(ctx)
+}
+
+func (r *Reconciler) deployOperatorServiceMonitor(ctx context.Context) error {
+	sm := &monitoringv1.ServiceMonitor{ObjectMeta: metav1.ObjectMeta{
+		Name:      gardenprometheus.Label + "-" + v1beta1constants.DeploymentNameGardenerOperator,
+		Namespace: r.GardenNamespace,
+	}}
+
+	_, err := controllerutils.CreateOrGetAndMergePatch(ctx, r.RuntimeClientSet.Client(), sm, func() error {
+		sm.Labels = utils.MergeStringMaps(sm.Labels, monitoringutils.Labels(gardenprometheus.Label))
+
+		sm.Spec.Endpoints = []monitoringv1.Endpoint{{
+			Port: "metrics",
+			MetricRelabelConfigs: monitoringutils.StandardMetricRelabelConfig(
+				"rest_client_.+",
+				"controller_runtime_.+",
+				"workqueue_.+",
+				"go_.+",
+			)},
+		}
+		sm.Spec.Selector = metav1.LabelSelector{MatchLabels: map[string]string{
+			v1beta1constants.LabelApp:  v1beta1constants.LabelGardener,
+			v1beta1constants.LabelRole: "operator",
+		}}
+		return nil
+	})
+	return err
 }
 
 func (r *Reconciler) deployGardenerDashboard(ctx context.Context, dashboard gardenerdashboard.Interface, garden *operatorv1alpha1.Garden, secretsManager secretsmanager.Interface, virtualGardenClient client.Client) error {

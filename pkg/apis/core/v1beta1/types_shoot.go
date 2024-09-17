@@ -15,6 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 
+	gardencore "github.com/gardener/gardener/pkg/apis/core"
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 )
 
@@ -135,10 +136,11 @@ type ShootSpec struct {
 	CloudProfile *CloudProfileReference `json:"cloudProfile,omitempty" protobuf:"bytes,22,opt,name=cloudProfile"`
 	// CredentialsBindingName is the name of the a CredentialsBinding that has a reference to the provider credentials.
 	// The credentials will be used to create the shoot in the respective account. The field is mutually exclusive with SecretBindingName.
-	// This field is immutable.
 	// +optional
 	CredentialsBindingName *string `json:"credentialsBindingName,omitempty" protobuf:"bytes,23,opt,name=credentialsBindingName"`
 }
+
+var _ gardencore.Object = (*Shoot)(nil)
 
 // GetProviderType gets the type of the provider.
 func (s *Shoot) GetProviderType() string {
@@ -334,11 +336,11 @@ type ServiceAccountKeyRotation struct {
 	// LastInitiationTime is the most recent time when the service account key credential rotation was initiated.
 	// +optional
 	LastInitiationTime *metav1.Time `json:"lastInitiationTime,omitempty" protobuf:"bytes,3,opt,name=lastInitiationTime"`
-	// LastInitiationFinishedTime is the recent time when the certificate authority credential rotation initiation was
+	// LastInitiationFinishedTime is the recent time when the service account key credential rotation initiation was
 	// completed.
 	// +optional
 	LastInitiationFinishedTime *metav1.Time `json:"lastInitiationFinishedTime,omitempty" protobuf:"bytes,4,opt,name=lastInitiationFinishedTime"`
-	// LastCompletionTriggeredTime is the recent time when the certificate authority credential rotation completion was
+	// LastCompletionTriggeredTime is the recent time when the service account key credential rotation completion was
 	// triggered.
 	// +optional
 	LastCompletionTriggeredTime *metav1.Time `json:"lastCompletionTriggeredTime,omitempty" protobuf:"bytes,5,opt,name=lastCompletionTriggeredTime"`
@@ -355,11 +357,11 @@ type ETCDEncryptionKeyRotation struct {
 	// LastInitiationTime is the most recent time when the ETCD encryption key credential rotation was initiated.
 	// +optional
 	LastInitiationTime *metav1.Time `json:"lastInitiationTime,omitempty" protobuf:"bytes,3,opt,name=lastInitiationTime"`
-	// LastInitiationFinishedTime is the recent time when the certificate authority credential rotation initiation was
+	// LastInitiationFinishedTime is the recent time when the ETCD encryption key credential rotation initiation was
 	// completed.
 	// +optional
 	LastInitiationFinishedTime *metav1.Time `json:"lastInitiationFinishedTime,omitempty" protobuf:"bytes,4,opt,name=lastInitiationFinishedTime"`
-	// LastCompletionTriggeredTime is the recent time when the certificate authority credential rotation completion was
+	// LastCompletionTriggeredTime is the recent time when the ETCD encryption key credential rotation completion was
 	// triggered.
 	// +optional
 	LastCompletionTriggeredTime *metav1.Time `json:"lastCompletionTriggeredTime,omitempty" protobuf:"bytes,5,opt,name=lastCompletionTriggeredTime"`
@@ -430,7 +432,7 @@ type NginxIngress struct {
 	// ExternalTrafficPolicy controls the `.spec.externalTrafficPolicy` value of the load balancer `Service`
 	// exposing the nginx-ingress. Defaults to `Cluster`.
 	// +optional
-	ExternalTrafficPolicy *corev1.ServiceExternalTrafficPolicyType `json:"externalTrafficPolicy,omitempty" protobuf:"bytes,4,opt,name=externalTrafficPolicy,casttype=k8s.io/api/core/v1.ServiceExternalTrafficPolicyType"`
+	ExternalTrafficPolicy *corev1.ServiceExternalTrafficPolicy `json:"externalTrafficPolicy,omitempty" protobuf:"bytes,4,opt,name=externalTrafficPolicy,casttype=k8s.io/api/core/v1.ServiceExternalTrafficPolicy"`
 }
 
 // ControlPlane holds information about the general settings for the control plane of a shoot.
@@ -449,6 +451,7 @@ type DNS struct {
 	Domain *string `json:"domain,omitempty" protobuf:"bytes,1,opt,name=domain"`
 	// Providers is a list of DNS providers that shall be enabled for this shoot cluster. Only relevant if
 	// not a default domain is used.
+	//
 	// Deprecated: Configuring multiple DNS providers is deprecated and will be forbidden in a future release.
 	// Please use the DNS extension provider config (e.g. shoot-dns-service) for additional providers.
 	// +patchMergeKey=type
@@ -462,11 +465,13 @@ type DNS struct {
 // DNSProvider contains information about a DNS provider.
 type DNSProvider struct {
 	// Domains contains information about which domains shall be included/excluded for this provider.
+	//
 	// Deprecated: This field is deprecated and will be removed in a future release.
 	// Please use the DNS extension provider config (e.g. shoot-dns-service) for additional configuration.
 	// +optional
 	Domains *DNSIncludeExclude `json:"domains,omitempty" protobuf:"bytes,1,opt,name=domains"`
 	// Primary indicates that this DNSProvider is used for shoot related domains.
+	//
 	// Deprecated: This field is deprecated and will be removed in a future release.
 	// Please use the DNS extension provider config (e.g. shoot-dns-service) for additional and non-primary providers.
 	// +optional
@@ -482,6 +487,7 @@ type DNSProvider struct {
 	Type *string `json:"type,omitempty" protobuf:"bytes,4,opt,name=type"`
 
 	// Zones contains information about which hosted zones shall be included/excluded for this provider.
+	//
 	// Deprecated: This field is deprecated and will be removed in a future release.
 	// Please use the DNS extension provider config (e.g. shoot-dns-service) for additional configuration.
 	// +optional
@@ -823,6 +829,10 @@ type KubeAPIServerConfig struct {
 	// EncryptionConfig contains customizable encryption configuration of the Kube API server.
 	// +optional
 	EncryptionConfig *EncryptionConfig `json:"encryptionConfig,omitempty" protobuf:"bytes,16,opt,name=encryptionConfig"`
+	// StructuredAuthentication contains configuration settings for structured authentication to the kube-apiserver.
+	// This field is only available for Kubernetes v1.30 or later.
+	// +optional
+	StructuredAuthentication *StructuredAuthentication `json:"structuredAuthentication,omitempty" protobuf:"bytes,17,opt,name=structuredAuthentication"`
 }
 
 // APIServerLogging contains configuration for the logs level and http access logs
@@ -903,6 +913,13 @@ type AuditPolicy struct {
 	ConfigMapRef *corev1.ObjectReference `json:"configMapRef,omitempty" protobuf:"bytes,1,opt,name=configMapRef"`
 }
 
+// StructuredAuthentication contains authentication config for kube-apiserver.
+type StructuredAuthentication struct {
+	// ConfigMapName is the name of the ConfigMap in the project namespace
+	// which contains AuthenticationConfiguration for the kube-apiserver.
+	ConfigMapName string `json:"configMapName" protobuf:"bytes,1,opt,name=configMapName"`
+}
+
 // OIDCConfig contains configuration settings for the OIDC provider.
 // Note: Descriptions were taken from the Kubernetes documentation.
 type OIDCConfig struct {
@@ -910,9 +927,13 @@ type OIDCConfig struct {
 	// +optional
 	CABundle *string `json:"caBundle,omitempty" protobuf:"bytes,1,opt,name=caBundle"`
 	// ClientAuthentication can optionally contain client configuration used for kubeconfig generation.
+	//
+	// Deprecated: This field has no implemented use and will be forbidden starting from Kubernetes 1.31.
+	// It's use was planned for genereting OIDC kubeconfig https://github.com/gardener/gardener/issues/1433
+	// TODO(AleksandarSavchev): Drop this field after support for Kubernetes 1.30 is dropped.
 	// +optional
 	ClientAuthentication *OpenIDConnectClientAuthentication `json:"clientAuthentication,omitempty" protobuf:"bytes,2,opt,name=clientAuthentication"`
-	// The client ID for the OpenID Connect client, must be set if oidc-issuer-url is set.
+	// The client ID for the OpenID Connect client, must be set.
 	// +optional
 	ClientID *string `json:"clientID,omitempty" protobuf:"bytes,3,opt,name=clientID"`
 	// If provided, the name of a custom OpenID Connect claim for specifying user groups. The claim value is expected to be a string or array of strings. This flag is experimental, please see the authentication documentation for further details.
@@ -921,7 +942,7 @@ type OIDCConfig struct {
 	// If provided, all groups will be prefixed with this value to prevent conflicts with other authentication strategies.
 	// +optional
 	GroupsPrefix *string `json:"groupsPrefix,omitempty" protobuf:"bytes,5,opt,name=groupsPrefix"`
-	// The URL of the OpenID issuer, only HTTPS scheme will be accepted. If set, it will be used to verify the OIDC JSON Web Token (JWT).
+	// The URL of the OpenID issuer, only HTTPS scheme will be accepted. Used to verify the OIDC JSON Web Token (JWT).
 	// +optional
 	IssuerURL *string `json:"issuerURL,omitempty" protobuf:"bytes,6,opt,name=issuerURL"`
 	// key=value pairs that describes a required claim in the ID Token. If set, the claim is verified to be present in the ID Token with a matching value.
@@ -1174,9 +1195,10 @@ type KubeletConfig struct {
 	KubeReserved *KubeletConfigReserved `json:"kubeReserved,omitempty" protobuf:"bytes,14,opt,name=kubeReserved"`
 	// SystemReserved is the configuration for resources reserved for system processes not managed by kubernetes (e.g. journald).
 	// When updating these values, be aware that cgroup resizes may not succeed on active worker nodes. Look for the NodeAllocatableEnforced event to determine if the configuration was applied.
-	// Deprecated: Separately configuring resource reservations for system processes is deprecated in Gardener and will be removed soon.
+	//
+	// Deprecated: Separately configuring resource reservations for system processes is deprecated in Gardener and will be forbidden starting from Kubernetes 1.31.
 	// Please merge existing resource reservations into the kubeReserved field.
-	// TODO(MichaelEischer): Drop this field after v1.113 has been released.
+	// TODO(MichaelEischer): Drop this field after support for Kubernetes 1.30 is dropped.
 	// +optional
 	SystemReserved *KubeletConfigReserved `json:"systemReserved,omitempty" protobuf:"bytes,15,opt,name=systemReserved"`
 	// ImageGCHighThresholdPercent describes the percent of the disk usage which triggers image garbage collection.

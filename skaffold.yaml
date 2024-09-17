@@ -39,6 +39,7 @@ build:
             - cmd/utils
             - pkg/api
             - pkg/api/core/shoot
+            - pkg/api/extensions
             - pkg/apis/authentication
             - pkg/apis/authentication/install
             - pkg/apis/authentication/v1alpha1
@@ -64,6 +65,7 @@ build:
             - pkg/apis/security
             - pkg/apis/security/install
             - pkg/apis/security/v1alpha1
+            - pkg/apis/security/v1alpha1/constants
             - pkg/apis/security/validation
             - pkg/apis/seedmanagement
             - pkg/apis/seedmanagement/encoding
@@ -170,7 +172,11 @@ build:
             - pkg/client/settings/informers/externalversions/settings
             - pkg/client/settings/informers/externalversions/settings/v1alpha1
             - pkg/client/settings/listers/settings/v1alpha1
+            - pkg/controllermanager/apis/config
+            - pkg/controllermanager/controller/namespacedcloudprofile
             - pkg/controllerutils
+            - pkg/controllerutils/mapper
+            - pkg/controllerutils/predicate
             - pkg/features
             - pkg/gardenlet/apis/config
             - pkg/gardenlet/apis/config/helper
@@ -234,6 +240,7 @@ build:
             - plugin/pkg/shoot/validator
             - plugin/pkg/shoot/vpa
             - plugin/pkg/utils
+            - third_party/gopkg.in/yaml.v2
             - VERSION
         ldflags:
           - '{{.LD_FLAGS}}'
@@ -297,6 +304,7 @@ build:
             - pkg/controllermanager/controller/event
             - pkg/controllermanager/controller/exposureclass
             - pkg/controllermanager/controller/managedseedset
+            - pkg/controllermanager/controller/namespacedcloudprofile
             - pkg/controllermanager/controller/project
             - pkg/controllermanager/controller/project/activity
             - pkg/controllermanager/controller/project/project
@@ -415,6 +423,7 @@ build:
             - pkg/utils/validation/cidr
             - pkg/utils/validation/kubernetesversion
             - pkg/utils/version
+            - third_party/gopkg.in/yaml.v2
             - VERSION
         ldflags:
           - '{{.LD_FLAGS}}'
@@ -436,6 +445,7 @@ build:
             - pkg/admissioncontroller/webhook/admission
             - pkg/admissioncontroller/webhook/admission/admissionpluginsecret
             - pkg/admissioncontroller/webhook/admission/auditpolicy
+            - pkg/admissioncontroller/webhook/admission/authenticationconfig
             - pkg/admissioncontroller/webhook/admission/internaldomainsecret
             - pkg/admissioncontroller/webhook/admission/kubeconfigsecret
             - pkg/admissioncontroller/webhook/admission/namespacedeletion
@@ -493,6 +503,7 @@ build:
             - pkg/utils/timewindow
             - pkg/utils/validation/kubernetesversion
             - pkg/utils/version
+            - third_party/gopkg.in/yaml.v2
             - VERSION
         ldflags:
           - '{{.LD_FLAGS}}'
@@ -643,6 +654,7 @@ build:
             - imagevector/containers.yaml
             - pkg/api/core
             - pkg/api/extensions
+            - pkg/api/security
             - pkg/apis/core
             - pkg/apis/core/install
             - pkg/apis/core/v1
@@ -968,6 +980,9 @@ build:
             - pkg/client/kubernetes/clientmap
             - pkg/client/kubernetes/clientmap/builder
             - pkg/client/kubernetes/clientmap/keys
+            - pkg/client/security/clientset/versioned
+            - pkg/client/security/clientset/versioned/scheme
+            - pkg/client/security/clientset/versioned/typed/security/v1alpha1
             - pkg/component
             - pkg/component/apiserver
             - pkg/component/autoscaling/clusterautoscaler
@@ -1187,6 +1202,8 @@ build:
             - pkg/gardenlet/controller/shoot/shoot
             - pkg/gardenlet/controller/shoot/shoot/helper
             - pkg/gardenlet/controller/shoot/state
+            - pkg/gardenlet/controller/tokenrequestor/serviceaccount
+            - pkg/gardenlet/controller/tokenrequestor/workloadidentity
             - pkg/gardenlet/controller/vpaevictionrequirements
             - pkg/gardenlet/features
             - pkg/gardenlet/operation
@@ -1248,11 +1265,19 @@ build:
             - pkg/utils/validation/kubernetes/core
             - pkg/utils/validation/kubernetesversion
             - pkg/utils/version
+            - pkg/utils/workloadidentity
             - third_party/gopkg.in/yaml.v2
             - VERSION
         ldflags:
           - '{{.LD_FLAGS}}'
         main: ./cmd/gardenlet
+      hooks:
+        after:
+          - command:
+              - bash
+              - hack/generate-kustomize-patch-gardenlet.sh
+              - image
+              - gardenlet
     - image: local-skaffold/gardenlet/chart
       custom:
         dependencies:
@@ -1263,6 +1288,12 @@ build:
       requires:
         - image: local-skaffold/gardenlet
           alias: IMG
+      hooks:
+        after:
+          - command:
+              - bash
+              - hack/generate-kustomize-patch-gardenlet.sh
+              - helm
     - image: local-skaffold/gardener-resource-manager
       ko:
         dependencies:
@@ -1363,10 +1394,18 @@ build:
             - pkg/utils/validation/kubernetes/core
             - pkg/utils/validation/kubernetesversion
             - pkg/utils/version
+            - third_party/gopkg.in/yaml.v2
             - VERSION
         ldflags:
           - '{{.LD_FLAGS}}'
         main: ./cmd/gardener-resource-manager
+      hooks:
+        after:
+          - command:
+              - bash
+              - hack/generate-kustomize-patch-gardenlet.sh
+              - image
+              - gardener-resource-manager
     - image: local-skaffold/gardener-node-agent
       ko:
         dependencies:
@@ -1469,6 +1508,13 @@ build:
         ldflags:
           - '{{.LD_FLAGS}}'
         main: ./cmd/gardener-node-agent
+      hooks:
+        after:
+          - command:
+              - bash
+              - hack/generate-kustomize-patch-gardenlet.sh
+              - image
+              - gardener-node-agent
 deploy:
   helm:
     releases:
@@ -1589,43 +1635,17 @@ profiles:
   - name: operator
     patches:
       - op: remove
-        path: /deploy
-      - op: add
-        path: /build/artifacts/0/hooks
-        value:
-          after:
-            - command:
-                - bash
-                - hack/generate-kustomize-patch-gardenlet.sh
-                - image
-                - gardenlet
-      - op: add
-        path: /build/artifacts/1/hooks
-        value:
-          after:
-            - command:
-                - bash
-                - hack/generate-kustomize-patch-gardenlet.sh
-                - helm
-      - op: add
-        path: /build/artifacts/2/hooks
-        value:
-          after:
-            - command:
-                - bash
-                - hack/generate-kustomize-patch-gardenlet.sh
-                - image
-                - gardener-resource-manager
-      - op: add
-        path: /build/artifacts/3/hooks
-        value:
-          after:
-            - command:
-                - bash
-                - hack/generate-kustomize-patch-gardenlet.sh
-                - image
-                - gardener-node-agent
+        path: /deploy/helm
     manifests:
       kustomize:
         paths:
           - example/gardener-local/gardenlet/operator
+    deploy:
+      kubectl:
+        hooks:
+          after:
+            - host:
+                command:
+                  - bash
+                  - -ec
+                  - KUBECONFIG=$VIRTUAL_GARDEN_KUBECONFIG hack/usage/wait-for.sh seed local GardenletReady SeedSystemComponentsHealthy ExtensionsReady BackupBucketsReady

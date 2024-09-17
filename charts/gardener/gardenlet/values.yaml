@@ -16,7 +16,6 @@ resources:
 additionalVolumes: []
 additionalVolumeMounts: []
 env: []
-vpa: false
 # imageVectorOverwrite: |
 #  Please find documentation in /docs/deployment/image_vector.md#overwriting-image-vector
 # componentImageVectorOverwrites: |
@@ -131,6 +130,8 @@ config:
     # - matchLabels:
     #     foo: bar
     tokenRequestor:
+      concurrentSyncs: 5
+    tokenRequestorWorkloadIdentity:
       concurrentSyncs: 5
     vpaEvictionRequirements:
       concurrentSyncs: 5

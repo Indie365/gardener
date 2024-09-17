@@ -205,6 +205,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/gardener/gardener/pkg/apis/core/v1beta1.ShootStateSpec":                             schema_pkg_apis_core_v1beta1_ShootStateSpec(ref),
 		"github.com/gardener/gardener/pkg/apis/core/v1beta1.ShootStatus":                                schema_pkg_apis_core_v1beta1_ShootStatus(ref),
 		"github.com/gardener/gardener/pkg/apis/core/v1beta1.ShootTemplate":                              schema_pkg_apis_core_v1beta1_ShootTemplate(ref),
+		"github.com/gardener/gardener/pkg/apis/core/v1beta1.StructuredAuthentication":                   schema_pkg_apis_core_v1beta1_StructuredAuthentication(ref),
 		"github.com/gardener/gardener/pkg/apis/core/v1beta1.SystemComponents":                           schema_pkg_apis_core_v1beta1_SystemComponents(ref),
 		"github.com/gardener/gardener/pkg/apis/core/v1beta1.Toleration":                                 schema_pkg_apis_core_v1beta1_Toleration(ref),
 		"github.com/gardener/gardener/pkg/apis/core/v1beta1.VerticalPodAutoscaler":                      schema_pkg_apis_core_v1beta1_VerticalPodAutoscaler(ref),
@@ -1925,7 +1926,7 @@ func schema_pkg_apis_core_v1beta1_CloudProfileReference(ref common.ReferenceCall
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "CloudProfileReference holds the information about the parent of the NamespacedCloudProfile.",
+				Description: "CloudProfileReference holds the information about a CloudProfile or a NamespacedCloudProfile.",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"kind": {
@@ -3023,7 +3024,7 @@ func schema_pkg_apis_core_v1beta1_DNS(ref common.ReferenceCallback) common.OpenA
 							},
 						},
 						SchemaProps: spec.SchemaProps{
-							Description: "Providers is a list of DNS providers that shall be enabled for this shoot cluster. Only relevant if not a default domain is used. Deprecated: Configuring multiple DNS providers is deprecated and will be forbidden in a future release. Please use the DNS extension provider config (e.g. shoot-dns-service) for additional providers.",
+							Description: "Providers is a list of DNS providers that shall be enabled for this shoot cluster. Only relevant if not a default domain is used.\n\nDeprecated: Configuring multiple DNS providers is deprecated and will be forbidden in a future release. Please use the DNS extension provider config (e.g. shoot-dns-service) for additional providers.",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -3095,13 +3096,13 @@ func schema_pkg_apis_core_v1beta1_DNSProvider(ref common.ReferenceCallback) comm
 				Properties: map[string]spec.Schema{
 					"domains": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Domains contains information about which domains shall be included/excluded for this provider. Deprecated: This field is deprecated and will be removed in a future release. Please use the DNS extension provider config (e.g. shoot-dns-service) for additional configuration.",
+							Description: "Domains contains information about which domains shall be included/excluded for this provider.\n\nDeprecated: This field is deprecated and will be removed in a future release. Please use the DNS extension provider config (e.g. shoot-dns-service) for additional configuration.",
 							Ref:         ref("github.com/gardener/gardener/pkg/apis/core/v1beta1.DNSIncludeExclude"),
 						},
 					},
 					"primary": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Primary indicates that this DNSProvider is used for shoot related domains. Deprecated: This field is deprecated and will be removed in a future release. Please use the DNS extension provider config (e.g. shoot-dns-service) for additional and non-primary providers.",
+							Description: "Primary indicates that this DNSProvider is used for shoot related domains.\n\nDeprecated: This field is deprecated and will be removed in a future release. Please use the DNS extension provider config (e.g. shoot-dns-service) for additional and non-primary providers.",
 							Type:        []string{"boolean"},
 							Format:      "",
 						},
@@ -3122,7 +3123,7 @@ func schema_pkg_apis_core_v1beta1_DNSProvider(ref common.ReferenceCallback) comm
 					},
 					"zones": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Zones contains information about which hosted zones shall be included/excluded for this provider. Deprecated: This field is deprecated and will be removed in a future release. Please use the DNS extension provider config (e.g. shoot-dns-service) for additional configuration.",
+							Description: "Zones contains information about which hosted zones shall be included/excluded for this provider.\n\nDeprecated: This field is deprecated and will be removed in a future release. Please use the DNS extension provider config (e.g. shoot-dns-service) for additional configuration.",
 							Ref:         ref("github.com/gardener/gardener/pkg/apis/core/v1beta1.DNSIncludeExclude"),
 						},
 					},
@@ -3267,13 +3268,13 @@ func schema_pkg_apis_core_v1beta1_ETCDEncryptionKeyRotation(ref common.Reference
 					},
 					"lastInitiationFinishedTime": {
 						SchemaProps: spec.SchemaProps{
-							Description: "LastInitiationFinishedTime is the recent time when the certificate authority credential rotation initiation was completed.",
+							Description: "LastInitiationFinishedTime is the recent time when the ETCD encryption key credential rotation initiation was completed.",
 							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
 						},
 					},
 					"lastCompletionTriggeredTime": {
 						SchemaProps: spec.SchemaProps{
-							Description: "LastCompletionTriggeredTime is the recent time when the certificate authority credential rotation completion was triggered.",
+							Description: "LastCompletionTriggeredTime is the recent time when the ETCD encryption key credential rotation completion was triggered.",
 							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
 						},
 					},
@@ -4213,11 +4214,17 @@ func schema_pkg_apis_core_v1beta1_KubeAPIServerConfig(ref common.ReferenceCallba
 							Ref:         ref("github.com/gardener/gardener/pkg/apis/core/v1beta1.EncryptionConfig"),
 						},
 					},
+					"structuredAuthentication": {
+						SchemaProps: spec.SchemaProps{
+							Description: "StructuredAuthentication contains configuration settings for structured authentication to the kube-apiserver. This field is only available for Kubernetes v1.30 or later.",
+							Ref:         ref("github.com/gardener/gardener/pkg/apis/core/v1beta1.StructuredAuthentication"),
+						},
+					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"github.com/gardener/gardener/pkg/apis/core/v1beta1.APIServerLogging", "github.com/gardener/gardener/pkg/apis/core/v1beta1.APIServerRequests", "github.com/gardener/gardener/pkg/apis/core/v1beta1.AdmissionPlugin", "github.com/gardener/gardener/pkg/apis/core/v1beta1.AuditConfig", "github.com/gardener/gardener/pkg/apis/core/v1beta1.EncryptionConfig", "github.com/gardener/gardener/pkg/apis/core/v1beta1.OIDCConfig", "github.com/gardener/gardener/pkg/apis/core/v1beta1.ServiceAccountConfig", "github.com/gardener/gardener/pkg/apis/core/v1beta1.WatchCacheSizes", "k8s.io/apimachinery/pkg/apis/meta/v1.Duration"},
+			"github.com/gardener/gardener/pkg/apis/core/v1beta1.APIServerLogging", "github.com/gardener/gardener/pkg/apis/core/v1beta1.APIServerRequests", "github.com/gardener/gardener/pkg/apis/core/v1beta1.AdmissionPlugin", "github.com/gardener/gardener/pkg/apis/core/v1beta1.AuditConfig", "github.com/gardener/gardener/pkg/apis/core/v1beta1.EncryptionConfig", "github.com/gardener/gardener/pkg/apis/core/v1beta1.OIDCConfig", "github.com/gardener/gardener/pkg/apis/core/v1beta1.ServiceAccountConfig", "github.com/gardener/gardener/pkg/apis/core/v1beta1.StructuredAuthentication", "github.com/gardener/gardener/pkg/apis/core/v1beta1.WatchCacheSizes", "k8s.io/apimachinery/pkg/apis/meta/v1.Duration"},
 	}
 }
 
@@ -4466,7 +4473,7 @@ func schema_pkg_apis_core_v1beta1_KubeletConfig(ref common.ReferenceCallback) co
 					},
 					"systemReserved": {
 						SchemaProps: spec.SchemaProps{
-							Description: "SystemReserved is the configuration for resources reserved for system processes not managed by kubernetes (e.g. journald). When updating these values, be aware that cgroup resizes may not succeed on active worker nodes. Look for the NodeAllocatableEnforced event to determine if the configuration was applied. Deprecated: Separately configuring resource reservations for system processes is deprecated in Gardener and will be removed soon. Please merge existing resource reservations into the kubeReserved field.",
+							Description: "SystemReserved is the configuration for resources reserved for system processes not managed by kubernetes (e.g. journald). When updating these values, be aware that cgroup resizes may not succeed on active worker nodes. Look for the NodeAllocatableEnforced event to determine if the configuration was applied.\n\nDeprecated: Separately configuring resource reservations for system processes is deprecated in Gardener and will be forbidden starting from Kubernetes 1.31. Please merge existing resource reservations into the kubeReserved field.",
 							Ref:         ref("github.com/gardener/gardener/pkg/apis/core/v1beta1.KubeletConfigReserved"),
 						},
 					},
@@ -5714,26 +5721,6 @@ func schema_pkg_apis_core_v1beta1_NamespacedCloudProfileSpec(ref common.Referenc
 							},
 						},
 					},
-					"regions": {
-						VendorExtensible: spec.VendorExtensible{
-							Extensions: spec.Extensions{
-								"x-kubernetes-patch-merge-key": "name",
-								"x-kubernetes-patch-strategy":  "merge",
-							},
-						},
-						SchemaProps: spec.SchemaProps{
-							Description: "Regions contains constraints regarding allowed values for regions and zones.",
-							Type:        []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Default: map[string]interface{}{},
-										Ref:     ref("github.com/gardener/gardener/pkg/apis/core/v1beta1.Region"),
-									},
-								},
-							},
-						},
-					},
 					"volumeTypes": {
 						VendorExtensible: spec.VendorExtensible{
 							Extensions: spec.Extensions{
@@ -5766,7 +5753,7 @@ func schema_pkg_apis_core_v1beta1_NamespacedCloudProfileSpec(ref common.Referenc
 			},
 		},
 		Dependencies: []string{
-			"github.com/gardener/gardener/pkg/apis/core/v1beta1.CloudProfileReference", "github.com/gardener/gardener/pkg/apis/core/v1beta1.KubernetesSettings", "github.com/gardener/gardener/pkg/apis/core/v1beta1.MachineImage", "github.com/gardener/gardener/pkg/apis/core/v1beta1.MachineType", "github.com/gardener/gardener/pkg/apis/core/v1beta1.Region", "github.com/gardener/gardener/pkg/apis/core/v1beta1.VolumeType"},
+			"github.com/gardener/gardener/pkg/apis/core/v1beta1.CloudProfileReference", "github.com/gardener/gardener/pkg/apis/core/v1beta1.KubernetesSettings", "github.com/gardener/gardener/pkg/apis/core/v1beta1.MachineImage", "github.com/gardener/gardener/pkg/apis/core/v1beta1.MachineType", "github.com/gardener/gardener/pkg/apis/core/v1beta1.VolumeType"},
 	}
 }
 
@@ -5786,7 +5773,7 @@ func schema_pkg_apis_core_v1beta1_NamespacedCloudProfileStatus(ref common.Refere
 					},
 					"observedGeneration": {
 						SchemaProps: spec.SchemaProps{
-							Description: "ObservedGeneration is the most recent generation observed for this project.",
+							Description: "ObservedGeneration is the most recent generation observed for this NamespacedCloudProfile.",
 							Type:        []string{"integer"},
 							Format:      "int64",
 						},
@@ -6082,13 +6069,13 @@ func schema_pkg_apis_core_v1beta1_OIDCConfig(ref common.ReferenceCallback) commo
 					},
 					"clientAuthentication": {
 						SchemaProps: spec.SchemaProps{
-							Description: "ClientAuthentication can optionally contain client configuration used for kubeconfig generation.",
+							Description: "ClientAuthentication can optionally contain client configuration used for kubeconfig generation.\n\nDeprecated: This field has no implemented use and will be forbidden starting from Kubernetes 1.31. It's use was planned for genereting OIDC kubeconfig https://github.com/gardener/gardener/issues/1433",
 							Ref:         ref("github.com/gardener/gardener/pkg/apis/core/v1beta1.OpenIDConnectClientAuthentication"),
 						},
 					},
 					"clientID": {
 						SchemaProps: spec.SchemaProps{
-							Description: "The client ID for the OpenID Connect client, must be set if oidc-issuer-url is set.",
+							Description: "The client ID for the OpenID Connect client, must be set.",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -6109,7 +6096,7 @@ func schema_pkg_apis_core_v1beta1_OIDCConfig(ref common.ReferenceCallback) commo
 					},
 					"issuerURL": {
 						SchemaProps: spec.SchemaProps{
-							Description: "The URL of the OpenID issuer, only HTTPS scheme will be accepted. If set, it will be used to verify the OIDC JSON Web Token (JWT).",
+							Description: "The URL of the OpenID issuer, only HTTPS scheme will be accepted. Used to verify the OIDC JSON Web Token (JWT).",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -6768,7 +6755,7 @@ func schema_pkg_apis_core_v1beta1_QuotaSpec(ref common.ReferenceCallback) common
 					},
 					"scope": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Scope is the scope of the Quota object, either 'project' or 'secret'. This field is immutable.",
+							Description: "Scope is the scope of the Quota object, either 'project', 'secret' or 'workloadidentity'. This field is immutable.",
 							Default:     map[string]interface{}{},
 							Ref:         ref("k8s.io/api/core/v1.ObjectReference"),
 						},
@@ -8250,13 +8237,13 @@ func schema_pkg_apis_core_v1beta1_ServiceAccountKeyRotation(ref common.Reference
 					},
 					"lastInitiationFinishedTime": {
 						SchemaProps: spec.SchemaProps{
-							Description: "LastInitiationFinishedTime is the recent time when the certificate authority credential rotation initiation was completed.",
+							Description: "LastInitiationFinishedTime is the recent time when the service account key credential rotation initiation was completed.",
 							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
 						},
 					},
 					"lastCompletionTriggeredTime": {
 						SchemaProps: spec.SchemaProps{
-							Description: "LastCompletionTriggeredTime is the recent time when the certificate authority credential rotation completion was triggered.",
+							Description: "LastCompletionTriggeredTime is the recent time when the service account key credential rotation completion was triggered.",
 							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
 						},
 					},
@@ -8771,7 +8758,7 @@ func schema_pkg_apis_core_v1beta1_ShootSpec(ref common.ReferenceCallback) common
 					},
 					"credentialsBindingName": {
 						SchemaProps: spec.SchemaProps{
-							Description: "CredentialsBindingName is the name of the a CredentialsBinding that has a reference to the provider credentials. The credentials will be used to create the shoot in the respective account. The field is mutually exclusive with SecretBindingName. This field is immutable.",
+							Description: "CredentialsBindingName is the name of the a CredentialsBinding that has a reference to the provider credentials. The credentials will be used to create the shoot in the respective account. The field is mutually exclusive with SecretBindingName.",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -9167,6 +9154,28 @@ func schema_pkg_apis_core_v1beta1_ShootTemplate(ref common.ReferenceCallback) co
 		},
 		Dependencies: []string{
 			"github.com/gardener/gardener/pkg/apis/core/v1beta1.ShootSpec", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+	}
+}
+
+func schema_pkg_apis_core_v1beta1_StructuredAuthentication(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "StructuredAuthentication contains authentication config for kube-apiserver.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"configMapName": {
+						SchemaProps: spec.SchemaProps{
+							Description: "ConfigMapName is the name of the ConfigMap in the project namespace which contains AuthenticationConfiguration for the kube-apiserver.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+				},
+				Required: []string{"configMapName"},
+			},
+		},
 	}
 }
 
@@ -10073,7 +10082,7 @@ func schema_pkg_apis_security_v1alpha1_CredentialsBinding(ref common.ReferenceCa
 					},
 					"credentialsRef": {
 						SchemaProps: spec.SchemaProps{
-							Description: "CredentialsRef is a reference to a resource holding the credentials. Accepted resources are core/v1.Secret and security.gardener.cloud/v1alpha1.WorkloadIdentity",
+							Description: "CredentialsRef is a reference to a resource holding the credentials. Accepted resources are core/v1.Secret and security.gardener.cloud/v1alpha1.WorkloadIdentity This field is immutable.",
 							Default:     map[string]interface{}{},
 							Ref:         ref("k8s.io/api/core/v1.ObjectReference"),
 						},
@@ -10300,7 +10309,7 @@ func schema_pkg_apis_security_v1alpha1_TokenRequestStatus(ref common.ReferenceCa
 					},
 					"expirationTimestamp": {
 						SchemaProps: spec.SchemaProps{
-							Description: "ExpirationTimeStamp is the time of expiration of the returned token.",
+							Description: "ExpirationTimestamp is the time of expiration of the returned token.",
 							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
 						},
 					},
@@ -10682,7 +10691,7 @@ func schema_pkg_apis_seedmanagement_v1alpha1_GardenletDeployment(ref common.Refe
 					},
 					"vpa": {
 						SchemaProps: spec.SchemaProps{
-							Description: "VPA specifies whether to enable VPA for gardenlet. Defaults to true.",
+							Description: "VPA specifies whether to enable VPA for gardenlet. Defaults to true.\n\nDeprecated: This field is deprecated and has no effect anymore. It will be removed in the future.",
 							Type:        []string{"boolean"},
 							Format:      "",
 						},
@@ -10885,7 +10894,7 @@ func schema_pkg_apis_seedmanagement_v1alpha1_GardenletSelfDeployment(ref common.
 					},
 					"vpa": {
 						SchemaProps: spec.SchemaProps{
-							Description: "VPA specifies whether to enable VPA for gardenlet. Defaults to true.",
+							Description: "VPA specifies whether to enable VPA for gardenlet. Defaults to true.\n\nDeprecated: This field is deprecated and has no effect anymore. It will be removed in the future.",
 							Type:        []string{"boolean"},
 							Format:      "",
 						},
@@ -11721,7 +11730,7 @@ func schema_pkg_apis_settings_v1alpha1_ClusterOpenIDConnectPresetSpec(ref common
 					},
 					"client": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Client contains the configuration used for client OIDC authentication of Shoot clusters. This configuration is not overwriting any existing OpenID Connect client authentication already set on the Shoot object.",
+							Description: "Client contains the configuration used for client OIDC authentication of Shoot clusters. This configuration is not overwriting any existing OpenID Connect client authentication already set on the Shoot object.\n\nDeprecated: The OpenID Connect configuration this field specifies is not used and will be forbidden starting from Kubernetes 1.31. It's use was planned for genereting OIDC kubeconfig https://github.com/gardener/gardener/issues/1433",
 							Ref:         ref("github.com/gardener/gardener/pkg/apis/settings/v1alpha1.OpenIDConnectClientAuthentication"),
 						},
 					},
@@ -11997,7 +12006,7 @@ func schema_pkg_apis_settings_v1alpha1_OpenIDConnectPresetSpec(ref common.Refere
 					},
 					"client": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Client contains the configuration used for client OIDC authentication of Shoot clusters. This configuration is not overwriting any existing OpenID Connect client authentication already set on the Shoot object.",
+							Description: "Client contains the configuration used for client OIDC authentication of Shoot clusters. This configuration is not overwriting any existing OpenID Connect client authentication already set on the Shoot object.\n\nDeprecated: The OpenID Connect configuration this field specifies is not used and will be forbidden starting from Kubernetes 1.31. It's use was planned for genereting OIDC kubeconfig https://github.com/gardener/gardener/issues/1433",
 							Ref:         ref("github.com/gardener/gardener/pkg/apis/settings/v1alpha1.OpenIDConnectClientAuthentication"),
 						},
 					},

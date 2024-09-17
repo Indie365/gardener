@@ -17,6 +17,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
+	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	v1beta1helper "github.com/gardener/gardener/pkg/apis/core/v1beta1/helper"
 )
 
@@ -27,13 +28,13 @@ type ShootCreationConfig struct {
 	GardenerConfig *GardenerConfig
 
 	shootKubeconfigPath          string
-	seedKubeconfigPath           string
 	testShootName                string
 	testShootPrefix              string
 	shootMachineImageName        string
 	shootMachineType             string
 	shootMachineImageVersion     string
-	cloudProfile                 string
+	cloudProfileName             string
+	cloudProfileKind             string
 	seedName                     string
 	shootRegion                  string
 	secretBinding                string
@@ -181,10 +182,6 @@ func mergeShootCreationConfig(base, overwrite *ShootCreationConfig) *ShootCreati
 		base.shootKubeconfigPath = overwrite.shootKubeconfigPath
 	}
 
-	if StringSet(overwrite.seedKubeconfigPath) {
-		base.seedKubeconfigPath = overwrite.seedKubeconfigPath
-	}
-
 	if StringSet(overwrite.testShootName) {
 		base.testShootName = overwrite.testShootName
 	}
@@ -209,8 +206,12 @@ func mergeShootCreationConfig(base, overwrite *ShootCreationConfig) *ShootCreati
 		base.shootMachineImageVersion = overwrite.shootMachineImageVersion
 	}
 
-	if StringSet(overwrite.cloudProfile) {
-		base.cloudProfile = overwrite.cloudProfile
+	if StringSet(overwrite.cloudProfileName) {
+		base.cloudProfileName = overwrite.cloudProfileName
+	}
+
+	if StringSet(overwrite.cloudProfileKind) {
+		base.cloudProfileKind = overwrite.cloudProfileKind
 	}
 
 	if StringSet(overwrite.seedName) {
@@ -299,14 +300,14 @@ func RegisterShootCreationFrameworkFlags() *ShootCreationConfig {
 	newCfg := &ShootCreationConfig{}
 
 	flag.StringVar(&newCfg.shootKubeconfigPath, "shoot-kubecfg-path", "", "the path to where the Kubeconfig of the Shoot cluster will be downloaded to. The kubeconfig expires in 6 hours.")
-	flag.StringVar(&newCfg.seedKubeconfigPath, "seed-kubecfg-path", "", "the path to where the Kubeconfig of the Seed cluster will be downloaded to.")
 	flag.StringVar(&newCfg.testShootName, "shoot-name", "", "unique name to use for test shoots. Used by test-machinery.")
 	flag.StringVar(&newCfg.testShootPrefix, "prefix", "", "prefix for generated shoot name. Usually used locally to auto generate a unique name.")
 	flag.StringVar(&newCfg.shootAnnotations, "annotations", "", "annotations to be added to the test shoot. Expected format is key1=val1,key2=val2 (similar to kubectl --selector).")
 	flag.StringVar(&newCfg.shootMachineImageName, "machine-image-name", "", "the Machine Image Name of the test shoot. Defaults to first machine image in the CloudProfile.")
 	flag.StringVar(&newCfg.shootMachineType, "machine-type", "", "the Machine type of the first worker of the test shoot. Needs to match the machine types for that Provider available in the CloudProfile.")
 	flag.StringVar(&newCfg.shootMachineImageVersion, "machine-image-version", "", "the Machine Image version of the first worker of the test shoot. Needs to be set when the MachineImageName is set.")
-	flag.StringVar(&newCfg.cloudProfile, "cloud-profile", "", "cloudProfile to use for the shoot.")
+	flag.StringVar(&newCfg.cloudProfileName, "cloud-profile-name", "", "cloudProfile name to use for the shoot.")
+	flag.StringVar(&newCfg.cloudProfileKind, "cloud-profile-kind", v1beta1constants.CloudProfileReferenceKindCloudProfile, "cloudProfile kind to use for the shoot. Optional.")
 	flag.StringVar(&newCfg.seedName, "seed", "", "Name of the seed to use for the shoot.")
 	flag.StringVar(&newCfg.shootRegion, "region", "", "region to use for the shoot. Must be compatible with the infrastructureProvider.Zone.")
 	flag.StringVar(&newCfg.secretBinding, "secret-binding", "", "the secretBinding for the provider account of the shoot.")

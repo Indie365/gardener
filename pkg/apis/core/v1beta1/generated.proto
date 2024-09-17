@@ -333,7 +333,7 @@ message CloudProfileList {
   repeated CloudProfile items = 2;
 }
 
-// CloudProfileReference holds the information about the parent of the NamespacedCloudProfile.
+// CloudProfileReference holds the information about a CloudProfile or a NamespacedCloudProfile.
 message CloudProfileReference {
   // Kind contains a CloudProfile kind.
   optional string kind = 1;
@@ -728,6 +728,7 @@ message DNS {
 
   // Providers is a list of DNS providers that shall be enabled for this shoot cluster. Only relevant if
   // not a default domain is used.
+  //
   // Deprecated: Configuring multiple DNS providers is deprecated and will be forbidden in a future release.
   // Please use the DNS extension provider config (e.g. shoot-dns-service) for additional providers.
   // +patchMergeKey=type
@@ -750,12 +751,14 @@ message DNSIncludeExclude {
 // DNSProvider contains information about a DNS provider.
 message DNSProvider {
   // Domains contains information about which domains shall be included/excluded for this provider.
+  //
   // Deprecated: This field is deprecated and will be removed in a future release.
   // Please use the DNS extension provider config (e.g. shoot-dns-service) for additional configuration.
   // +optional
   optional DNSIncludeExclude domains = 1;
 
   // Primary indicates that this DNSProvider is used for shoot related domains.
+  //
   // Deprecated: This field is deprecated and will be removed in a future release.
   // Please use the DNS extension provider config (e.g. shoot-dns-service) for additional and non-primary providers.
   // +optional
@@ -773,6 +776,7 @@ message DNSProvider {
   optional string type = 4;
 
   // Zones contains information about which hosted zones shall be included/excluded for this provider.
+  //
   // Deprecated: This field is deprecated and will be removed in a future release.
   // Please use the DNS extension provider config (e.g. shoot-dns-service) for additional configuration.
   // +optional
@@ -830,12 +834,12 @@ message ETCDEncryptionKeyRotation {
   // +optional
   optional k8s.io.apimachinery.pkg.apis.meta.v1.Time lastInitiationTime = 3;
 
-  // LastInitiationFinishedTime is the recent time when the certificate authority credential rotation initiation was
+  // LastInitiationFinishedTime is the recent time when the ETCD encryption key credential rotation initiation was
   // completed.
   // +optional
   optional k8s.io.apimachinery.pkg.apis.meta.v1.Time lastInitiationFinishedTime = 4;
 
-  // LastCompletionTriggeredTime is the recent time when the certificate authority credential rotation completion was
+  // LastCompletionTriggeredTime is the recent time when the ETCD encryption key credential rotation completion was
   // triggered.
   // +optional
   optional k8s.io.apimachinery.pkg.apis.meta.v1.Time lastCompletionTriggeredTime = 5;
@@ -1204,6 +1208,11 @@ message KubeAPIServerConfig {
   // EncryptionConfig contains customizable encryption configuration of the Kube API server.
   // +optional
   optional EncryptionConfig encryptionConfig = 16;
+
+  // StructuredAuthentication contains configuration settings for structured authentication to the kube-apiserver.
+  // This field is only available for Kubernetes v1.30 or later.
+  // +optional
+  optional StructuredAuthentication structuredAuthentication = 17;
 }
 
 // KubeControllerManagerConfig contains configuration settings for the kube-controller-manager.
@@ -1345,9 +1354,10 @@ message KubeletConfig {
 
   // SystemReserved is the configuration for resources reserved for system processes not managed by kubernetes (e.g. journald).
   // When updating these values, be aware that cgroup resizes may not succeed on active worker nodes. Look for the NodeAllocatableEnforced event to determine if the configuration was applied.
-  // Deprecated: Separately configuring resource reservations for system processes is deprecated in Gardener and will be removed soon.
+  //
+  // Deprecated: Separately configuring resource reservations for system processes is deprecated in Gardener and will be forbidden starting from Kubernetes 1.31.
   // Please merge existing resource reservations into the kubeReserved field.
-  // TODO(MichaelEischer): Drop this field after v1.113 has been released.
+  // TODO(MichaelEischer): Drop this field after support for Kubernetes 1.30 is dropped.
   // +optional
   optional KubeletConfigReserved systemReserved = 15;
 
@@ -1865,12 +1875,6 @@ message NamespacedCloudProfileSpec {
   // +optional
   repeated MachineType machineTypes = 4;
 
-  // Regions contains constraints regarding allowed values for regions and zones.
-  // +patchMergeKey=name
-  // +patchStrategy=merge
-  // +optional
-  repeated Region regions = 5;
-
   // VolumeTypes contains constraints regarding allowed values for volume types in the 'workers' block in the Shoot specification.
   // +patchMergeKey=name
   // +patchStrategy=merge
@@ -1886,7 +1890,7 @@ message NamespacedCloudProfileStatus {
   // CloudProfile is the most recently generated CloudProfile of the NamespacedCloudProfile.
   optional CloudProfileSpec cloudProfileSpec = 1;
 
-  // ObservedGeneration is the most recent generation observed for this project.
+  // ObservedGeneration is the most recent generation observed for this NamespacedCloudProfile.
   // +optional
   optional int64 observedGeneration = 2;
 }
@@ -2003,10 +2007,14 @@ message OIDCConfig {
   optional string caBundle = 1;
 
   // ClientAuthentication can optionally contain client configuration used for kubeconfig generation.
+  //
+  // Deprecated: This field has no implemented use and will be forbidden starting from Kubernetes 1.31.
+  // It's use was planned for genereting OIDC kubeconfig https://github.com/gardener/gardener/issues/1433
+  // TODO(AleksandarSavchev): Drop this field after support for Kubernetes 1.30 is dropped.
   // +optional
   optional OpenIDConnectClientAuthentication clientAuthentication = 2;
 
-  // The client ID for the OpenID Connect client, must be set if oidc-issuer-url is set.
+  // The client ID for the OpenID Connect client, must be set.
   // +optional
   optional string clientID = 3;
 
@@ -2018,7 +2026,7 @@ message OIDCConfig {
   // +optional
   optional string groupsPrefix = 5;
 
-  // The URL of the OpenID issuer, only HTTPS scheme will be accepted. If set, it will be used to verify the OIDC JSON Web Token (JWT).
+  // The URL of the OpenID issuer, only HTTPS scheme will be accepted. Used to verify the OIDC JSON Web Token (JWT).
   // +optional
   optional string issuerURL = 6;
 
@@ -2244,7 +2252,7 @@ message QuotaSpec {
   // Metrics is a list of resources which will be put under constraints.
   map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> metrics = 2;
 
-  // Scope is the scope of the Quota object, either 'project' or 'secret'. This field is immutable.
+  // Scope is the scope of the Quota object, either 'project', 'secret' or 'workloadidentity'. This field is immutable.
   optional k8s.io.api.core.v1.ObjectReference scope = 3;
 }
 
@@ -2763,12 +2771,12 @@ message ServiceAccountKeyRotation {
   // +optional
   optional k8s.io.apimachinery.pkg.apis.meta.v1.Time lastInitiationTime = 3;
 
-  // LastInitiationFinishedTime is the recent time when the certificate authority credential rotation initiation was
+  // LastInitiationFinishedTime is the recent time when the service account key credential rotation initiation was
   // completed.
   // +optional
   optional k8s.io.apimachinery.pkg.apis.meta.v1.Time lastInitiationFinishedTime = 4;
 
-  // LastCompletionTriggeredTime is the recent time when the certificate authority credential rotation completion was
+  // LastCompletionTriggeredTime is the recent time when the service account key credential rotation completion was
   // triggered.
   // +optional
   optional k8s.io.apimachinery.pkg.apis.meta.v1.Time lastCompletionTriggeredTime = 5;
@@ -2991,7 +2999,6 @@ message ShootSpec {
 
   // CredentialsBindingName is the name of the a CredentialsBinding that has a reference to the provider credentials.
   // The credentials will be used to create the shoot in the respective account. The field is mutually exclusive with SecretBindingName.
-  // This field is immutable.
   // +optional
   optional string credentialsBindingName = 23;
 }
@@ -3133,6 +3140,13 @@ message ShootTemplate {
   // Specification of the desired behavior of the Shoot.
   // +optional
   optional ShootSpec spec = 2;
+}
+
+// StructuredAuthentication contains authentication config for kube-apiserver.
+message StructuredAuthentication {
+  // ConfigMapName is the name of the ConfigMap in the project namespace
+  // which contains AuthenticationConfiguration for the kube-apiserver.
+  optional string configMapName = 1;
 }
 
 // SystemComponents contains the settings of system components in the control or data plane of the Shoot cluster.

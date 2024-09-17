@@ -123,6 +123,9 @@ const (
 	// DeploymentNameGardenlet is a constant for the name of a Kubernetes deployment object that contains
 	// the Gardenlet pod.
 	DeploymentNameGardenlet = "gardenlet"
+	// DeploymentNameGardenerOperator is a constant for the name of a Kubernetes deployment object that contains
+	// the gardener-operator pod.
+	DeploymentNameGardenerOperator = "gardener-operator"
 
 	// DeploymentNameVPNSeedServer is a constant for the name of a Kubernetes deployment object that contains
 	// the vpn-seed-server pod.
@@ -312,6 +315,13 @@ const (
 	// Note that this annotation is alpha and can be removed anytime without further notice. Only use it if you know
 	// what you do.
 	ShootAlphaControlPlaneHAVPN = "alpha.control-plane.shoot.gardener.cloud/high-availability-vpn"
+	// ShootAlphaControlPlaneVPNVPAUpdateDisabled is a constant for an annotation on the Shoot resource to enforce
+	// disabling the vertical pod autoscaler update resources related to the VPN connection.
+	ShootAlphaControlPlaneVPNVPAUpdateDisabled = "alpha.control-plane.shoot.gardener.cloud/vpn-vpa-update-disabled"
+	// ShootAlphaControlPlaneDisableNewVPN is a constant for an annotation on the Shoot resource to disabling the
+	// new Go implementation of VPN.
+	// TODO(MartinWeindel) Remove after feature gate `NewVPN` gets promoted to GA.
+	ShootAlphaControlPlaneDisableNewVPN = "alpha.control-plane.shoot.gardener.cloud/disable-new-vpn"
 	// ShootExpirationTimestamp is an annotation on a Shoot resource whose value represents the time when the Shoot lifetime
 	// is expired. The lifetime can be extended, but at most by the minimal value of the 'clusterLifetimeDays' property
 	// of referenced quotas.
@@ -383,9 +393,12 @@ const (
 	// OperationRotateETCDEncryptionKeyComplete is a constant for an annotation on a Shoot indicating that the
 	// rotation of the ETCD encryption key shall be completed.
 	OperationRotateETCDEncryptionKeyComplete = "rotate-etcd-encryption-key-complete"
-	// SeedOperationRenewGardenAccessSecrets is a constant for an annotation on a Seed indicating that the
+	// SeedOperationRenewGardenAccessSecrets is a constant for an annotation on a Seed indicating that
 	// all garden access secrets on the seed shall be renewed.
 	SeedOperationRenewGardenAccessSecrets = "renew-garden-access-secrets" // #nosec G101 -- No credential.
+	// SeedOperationRenewWorkloadIdentityTokens is a constant for an annotation on a Seed indicating that
+	// all workload identity tokens on the seed shall be renewed.
+	SeedOperationRenewWorkloadIdentityTokens = "renew-workload-identity-tokens"
 	// KubeconfigSecretOperationRenew is a constant for an annotation on the secret in a Seed containing the garden
 	// cluster kubeconfig of a gardenlet indicating that it should be renewed.
 	KubeconfigSecretOperationRenew = "renew"
@@ -471,6 +484,7 @@ const (
 	LabelNetworkPolicyToPublicNetworks = "networking.gardener.cloud/to-public-networks"
 	// LabelNetworkPolicyToSeedAPIServer allows Egress from pods labeled with 'networking.gardener.cloud/to-seed-apiserver=allowed' to Seed's Kubernetes
 	// API Server.
+	//
 	// Deprecated: Use LabelNetworkPolicyToRuntimeAPIServer instead.
 	LabelNetworkPolicyToSeedAPIServer = "networking.gardener.cloud/to-seed-apiserver"
 	// LabelNetworkPolicyToRuntimeAPIServer allows Egress from pods labeled with 'networking.gardener.cloud/to-runtime-apiserver=allowed' to runtime Kubernetes
@@ -478,6 +492,7 @@ const (
 	LabelNetworkPolicyToRuntimeAPIServer = "networking.gardener.cloud/to-runtime-apiserver"
 	// LabelNetworkPolicyFromPrometheus allows Ingress from Prometheus to pods labeled with 'networking.gardener.cloud/from-prometheus=allowed' and ports
 	// named 'metrics' in the PodSpecification.
+	//
 	// Deprecated: This label is deprecated and will be removed in a future version. Components in shoot namespaces
 	//  which need to be scraped by Prometheus need to annotate their Services with
 	//  `networking.resources.gardener.cloud/from-policy-pod-label-selector=all-scrape-targets` and
@@ -767,7 +782,7 @@ const (
 	// DefaultVPNRange is the default IPv4 network range for the VPN between seed and shoot cluster.
 	DefaultVPNRange = "192.168.123.0/24"
 	// DefaultVPNRangeV6 is the default IPv6 network range for the VPN between seed and shoot cluster.
-	DefaultVPNRangeV6 = "fd8f:6d53:b97a:1::/120"
+	DefaultVPNRangeV6 = "fd8f:6d53:b97a:1::/96"
 
 	// BackupSecretName is the name of secret having credentials for etcd backups.
 	BackupSecretName string = "etcd-backup"

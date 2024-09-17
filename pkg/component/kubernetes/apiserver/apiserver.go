@@ -76,6 +76,8 @@ type Values struct {
 	// APIAudiences are identifiers of the API. The service account token authenticator will validate that tokens used
 	// against the API are bound to at least one of these audiences.
 	APIAudiences []string
+	// AuthenticationConfiguration contains authentication configuration.
+	AuthenticationConfiguration *string
 	// AuthenticationWebhook contains configuration for the authentication webhook.
 	AuthenticationWebhook *AuthenticationWebhook
 	// AuthorizationWebhook contains configuration for the authorization webhook.
@@ -166,10 +168,15 @@ type VPNConfig struct {
 	NodeNetworkCIDRs []net.IPNet
 	// HighAvailabilityEnabled states if VPN uses HA configuration.
 	HighAvailabilityEnabled bool
-	// HighAvailabilityNumberOfSeedServers is the number of VPN seed servers used for HA
+	// HighAvailabilityNumberOfSeedServers is the number of VPN seed servers used for HA.
 	HighAvailabilityNumberOfSeedServers int
-	// HighAvailabilityNumberOfShootClients is the number of VPN shoot clients used for HA
+	// HighAvailabilityNumberOfShootClients is the number of VPN shoot clients used for HA.
 	HighAvailabilityNumberOfShootClients int
+	// DisableNewVPN disable new VPN implementation.
+	// TODO(MartinWeindel) Remove after feature gate `NewVPN` gets promoted to GA.
+	DisableNewVPN bool
+	// IPFamilies are the IPFamilies of the shoot.
+	IPFamilies []gardencorev1beta1.IPFamily
 }
 
 // ServerCertificateConfig contains configuration for the server certificate.
@@ -257,6 +264,7 @@ func (k *kubeAPIServer) Deploy(ctx context.Context) error {
 		configMapAdmissionConfigs             = k.emptyConfigMap(configMapAdmissionNamePrefix)
 		secretAdmissionKubeconfigs            = k.emptySecret(secretAdmissionKubeconfigsNamePrefix)
 		configMapAuditPolicy                  = k.emptyConfigMap(configMapAuditPolicyNamePrefix)
+		configMapAuthenticationConfig         = k.emptyConfigMap(configMapAuthenticationConfigNamePrefix)
 		configMapEgressSelector               = k.emptyConfigMap(configMapEgressSelectorNamePrefix)
 	)
 
@@ -336,6 +344,10 @@ func (k *kubeAPIServer) Deploy(ctx context.Context) error {
 		return err
 	}
 
+	if err := k.reconcileConfigMapAuthenticationConfig(ctx, configMapAuthenticationConfig); err != nil {
+		return err
+	}
+
 	if err := k.reconcileConfigMapEgressSelector(ctx, configMapEgressSelector); err != nil {
 		return err
 	}
@@ -382,6 +394,7 @@ func (k *kubeAPIServer) Deploy(ctx context.Context) error {
 		deployment,
 		serviceAccount,
 		configMapAuditPolicy,
+		configMapAuthenticationConfig,
 		configMapAdmissionConfigs,
 		secretAdmissionKubeconfigs,
 		configMapEgressSelector,

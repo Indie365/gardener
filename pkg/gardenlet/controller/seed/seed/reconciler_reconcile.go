@@ -253,6 +253,13 @@ func (r *Reconciler) runReconcileSeedFlow(
 			deployPrometheusCRD,
 		)
 
+		_ = g.Add(flow.Task{
+			Name: "Deploying VPA for gardenlet",
+			Fn: func(ctx context.Context) error {
+				return gardenerutils.ReconcileVPAForGardenerComponent(ctx, r.SeedClientSet.Client(), v1beta1constants.DeploymentNameGardenlet, r.GardenNamespace)
+			},
+			Dependencies: flow.NewTaskIDs(syncPointCRDs),
+		})
 		deployGardenerResourceManager = g.Add(flow.Task{
 			Name:         "Deploying and waiting for gardener-resource-manager to be healthy",
 			Fn:           component.OpWait(c.gardenerResourceManager).Deploy,
@@ -352,6 +359,22 @@ func (r *Reconciler) runReconcileSeedFlow(
 			Dependencies: flow.NewTaskIDs(syncPointReadyForSystemComponents),
 			SkipIf:       seed.GetInfo().Annotations[v1beta1constants.GardenerOperation] != v1beta1constants.SeedOperationRenewGardenAccessSecrets,
 		})
+
+		_ = g.Add(flow.Task{
+			Name: "Renewing workload identity tokens",
+			Fn: func(ctx context.Context) error {
+				// renew workload identity tokens in all namespaces with the security.gardener.cloud/purpose=workload-identity-token-requestor label
+				if err := tokenrequest.RenewWorkloadIdentityTokens(ctx, r.SeedClientSet.Client()); err != nil {
+					return err
+				}
+
+				// remove operation annotation from seed after successful operation
+				return removeSeedOperationAnnotation(ctx, r.GardenClient, seed)
+			},
+			Dependencies: flow.NewTaskIDs(syncPointReadyForSystemComponents),
+			SkipIf:       seed.GetInfo().Annotations[v1beta1constants.GardenerOperation] != v1beta1constants.SeedOperationRenewWorkloadIdentityTokens,
+		})
+
 		_ = g.Add(flow.Task{
 			Name: "Renewing garden kubeconfig",
 			Fn: func(ctx context.Context) error {

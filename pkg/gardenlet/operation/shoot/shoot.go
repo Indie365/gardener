@@ -29,6 +29,7 @@ import (
 	vpnseedserver "github.com/gardener/gardener/pkg/component/networking/vpn/seedserver"
 	sharedcomponent "github.com/gardener/gardener/pkg/component/shared"
 	gardenerextensions "github.com/gardener/gardener/pkg/extensions"
+	"github.com/gardener/gardener/pkg/features"
 	"github.com/gardener/gardener/pkg/gardenlet/apis/config"
 	gardenlethelper "github.com/gardener/gardener/pkg/gardenlet/apis/config/helper"
 	"github.com/gardener/gardener/pkg/utils"
@@ -280,6 +281,14 @@ func (b *Builder) Build(ctx context.Context, c client.Reader) (*Shoot, error) {
 	}
 	shoot.VPNHighAvailabilityNumberOfSeedServers = vpnseedserver.HighAvailabilityReplicaCount
 	shoot.VPNHighAvailabilityNumberOfShootClients = vpnseedserver.HighAvailabilityReplicaCount
+	if vpnVPAUpdateDisabled, err := strconv.ParseBool(shoot.GetInfo().GetAnnotations()[v1beta1constants.ShootAlphaControlPlaneVPNVPAUpdateDisabled]); err == nil {
+		shoot.VPNVPAUpdateDisabled = vpnVPAUpdateDisabled
+	}
+
+	shoot.UsesNewVPN = features.DefaultFeatureGate.Enabled(features.NewVPN)
+	if disableNewVPN, err := strconv.ParseBool(shoot.GetInfo().GetAnnotations()[v1beta1constants.ShootAlphaControlPlaneDisableNewVPN]); err == nil {
+		shoot.UsesNewVPN = !disableNewVPN
+	}
 
 	needsClusterAutoscaler, err := v1beta1helper.ShootWantsClusterAutoscaler(shootObject)
 	if err != nil {
@@ -568,7 +577,7 @@ func ToNetworks(shoot *gardencorev1beta1.Shoot, workerless bool) (*Networks, err
 			return nil, fmt.Errorf("cannot parse shoot's node cidr %w", err)
 		}
 		nodes = append(nodes, *n)
-	} else if !workerless {
+	} else if !workerless && !gardencorev1beta1.IsIPv6SingleStack(shoot.Spec.Networking.IPFamilies) {
 		return nil, fmt.Errorf("shoot's node cidr is empty")
 	}
 

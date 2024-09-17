@@ -27,10 +27,17 @@ Please see [this](../../example/30-cloudprofile.yaml) example manifest and consu
 
 ### `NamespacedCloudProfile`s
 
-In addition to `CloudProfile`s, `NamespacedCloudProfile`s exist to enable project level `CloudProfile`s. 
+In addition to `CloudProfile`s, `NamespacedCloudProfile`s exist to enable project level `CloudProfile`s.
 Please view [GEP-25](../proposals/25-namespaced-cloud-profiles.md) for additional information.
 This feature is currently under development and not ready for productive use.
 At the moment, only the necessary APIs and validations exist to allow for extensions to adapt to the new `NamespacedCloudProfile` resource.
+
+When a shoot is created or updated, the cloudprofile reference can be set to point to a directly descendant `NamespacedCloudProfile`.
+Updates from one `CloudProfile` to another `CloudProfile` or from one `NamespacedCloudProfile` to another `NamespacedCloudProfile` or even to another `CloudProfile` are not allowed.
+
+Project viewers have the permission to see `NamespacedCloudProfile`s associated with a particular project.
+Project members can create, edit or delete `NamespacedCloudProfile`s, except for the special fields `.spec.kubernetes` and `.spec.machineImages`.
+In order to make changes to these special fields, a user needs to be granted the custom RBAC verbs `modify-spec-kubernetes` and `modify-spec-machineimages` respectively, which is typically only granted to landscape operators.
 
 ## `InternalSecret`s
 

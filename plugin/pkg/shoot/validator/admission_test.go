@@ -1063,6 +1063,87 @@ var _ = Describe("validator", func() {
 				Expect(err.Error()).To(ContainSubstring("provider type in shoot must match provider type of referenced CredentialsBinding: %q", credentialsBinding.Provider.Type))
 			})
 
+			It("should reject migration to credentials binding because a different secret is referenced", func() {
+				oldShoot := shoot.DeepCopy()
+				shoot.Spec.SecretBindingName = nil
+				oldShoot.Spec.CredentialsBindingName = nil
+
+				secretBinding.SecretRef = corev1.SecretReference{
+					Namespace: shoot.Namespace,
+					Name:      "secret1",
+				}
+				credentialsBinding.CredentialsRef = corev1.ObjectReference{
+					Namespace:  shoot.Namespace,
+					Name:       "another-secret1",
+					Kind:       "Secret",
+					APIVersion: corev1.SchemeGroupVersion.String(),
+				}
+				Expect(coreInformerFactory.Core().V1beta1().Projects().Informer().GetStore().Add(&project)).To(Succeed())
+				Expect(coreInformerFactory.Core().V1beta1().CloudProfiles().Informer().GetStore().Add(&cloudProfile)).To(Succeed())
+				Expect(coreInformerFactory.Core().V1beta1().Seeds().Informer().GetStore().Add(&seed)).To(Succeed())
+				Expect(coreInformerFactory.Core().V1beta1().SecretBindings().Informer().GetStore().Add(&secretBinding)).To(Succeed())
+				Expect(securityInformerFactory.Security().V1alpha1().CredentialsBindings().Informer().GetStore().Add(&credentialsBinding)).To(Succeed())
+
+				attrs := admission.NewAttributesRecord(&shoot, oldShoot, core.Kind("Shoot").WithVersion("version"), shoot.Namespace, shoot.Name, core.Resource("shoots").WithVersion("version"), "", admission.Update, &metav1.UpdateOptions{}, false, userInfo)
+				err := admissionHandler.Admit(ctx, attrs, nil)
+
+				Expect(err).To(BeForbiddenError())
+				Expect(err.Error()).To(ContainSubstring("it is not allowed to change the referenced Secret when migrating from SecretBindingName to CredentialsBindingName"))
+			})
+
+			It("should reject migration to credentials binding because a workload identity is referenced", func() {
+				oldShoot := shoot.DeepCopy()
+				shoot.Spec.SecretBindingName = nil
+				oldShoot.Spec.CredentialsBindingName = nil
+
+				secretBinding.SecretRef = corev1.SecretReference{
+					Namespace: shoot.Namespace,
+					Name:      "secret1",
+				}
+				credentialsBinding.CredentialsRef = corev1.ObjectReference{
+					Namespace:  shoot.Namespace,
+					Name:       "secret1",
+					Kind:       "WorkloadIdentity",
+					APIVersion: securityv1alpha1.SchemeGroupVersion.String(),
+				}
+				Expect(coreInformerFactory.Core().V1beta1().Projects().Informer().GetStore().Add(&project)).To(Succeed())
+				Expect(coreInformerFactory.Core().V1beta1().CloudProfiles().Informer().GetStore().Add(&cloudProfile)).To(Succeed())
+				Expect(coreInformerFactory.Core().V1beta1().Seeds().Informer().GetStore().Add(&seed)).To(Succeed())
+				Expect(coreInformerFactory.Core().V1beta1().SecretBindings().Informer().GetStore().Add(&secretBinding)).To(Succeed())
+				Expect(securityInformerFactory.Security().V1alpha1().CredentialsBindings().Informer().GetStore().Add(&credentialsBinding)).To(Succeed())
+
+				attrs := admission.NewAttributesRecord(&shoot, oldShoot, core.Kind("Shoot").WithVersion("version"), shoot.Namespace, shoot.Name, core.Resource("shoots").WithVersion("version"), "", admission.Update, &metav1.UpdateOptions{}, false, userInfo)
+				err := admissionHandler.Admit(ctx, attrs, nil)
+
+				Expect(err).To(BeForbiddenError())
+				Expect(err.Error()).To(ContainSubstring("it is not allowed to change the referenced Secret when migrating from SecretBindingName to CredentialsBindingName"))
+			})
+
+			It("should allow migration to credentials binding because the referenced secret stays the same", func() {
+				oldShoot := shoot.DeepCopy()
+				shoot.Spec.SecretBindingName = nil
+				oldShoot.Spec.CredentialsBindingName = nil
+
+				secretBinding.SecretRef = corev1.SecretReference{
+					Namespace: shoot.Namespace,
+					Name:      "secret1",
+				}
+				credentialsBinding.CredentialsRef = corev1.ObjectReference{
+					Namespace:  shoot.Namespace,
+					Name:       "secret1",
+					Kind:       "Secret",
+					APIVersion: corev1.SchemeGroupVersion.String(),
+				}
+				Expect(coreInformerFactory.Core().V1beta1().Projects().Informer().GetStore().Add(&project)).To(Succeed())
+				Expect(coreInformerFactory.Core().V1beta1().CloudProfiles().Informer().GetStore().Add(&cloudProfile)).To(Succeed())
+				Expect(coreInformerFactory.Core().V1beta1().Seeds().Informer().GetStore().Add(&seed)).To(Succeed())
+				Expect(coreInformerFactory.Core().V1beta1().SecretBindings().Informer().GetStore().Add(&secretBinding)).To(Succeed())
+				Expect(securityInformerFactory.Security().V1alpha1().CredentialsBindings().Informer().GetStore().Add(&credentialsBinding)).To(Succeed())
+
+				attrs := admission.NewAttributesRecord(&shoot, oldShoot, core.Kind("Shoot").WithVersion("version"), shoot.Namespace, shoot.Name, core.Resource("shoots").WithVersion("version"), "", admission.Update, &metav1.UpdateOptions{}, false, userInfo)
+				Expect(admissionHandler.Admit(ctx, attrs, nil)).To(Succeed())
+			})
+
 			It("should not error if and secret and credentials binding are nil", func() {
 				shoot.Spec.Provider.Type = "aws"
 				shoot.Spec.SecretBindingName = nil
@@ -1093,6 +1174,117 @@ var _ = Describe("validator", func() {
 				err := admissionHandler.Admit(ctx, attrs, nil)
 
 				Expect(err).NotTo(HaveOccurred())
+			})
+
+		})
+
+		Context("changing shoot.spec.credentialsBindingName", func() {
+			var (
+				oldShoot *core.Shoot
+			)
+			BeforeEach(func() {
+				auth = mockauthorizer.NewMockAuthorizer(ctrl)
+
+				shoot.Spec.SecretBindingName = nil
+				oldShoot = shoot.DeepCopy()
+				shoot.Spec.CredentialsBindingName = ptr.To("new-credentialsbinding")
+
+				credentialsBinding.CredentialsRef = corev1.ObjectReference{
+					Namespace:  shoot.Namespace,
+					Name:       "secret1",
+					Kind:       "Secret",
+					APIVersion: corev1.SchemeGroupVersion.String(),
+				}
+
+				newCredentialsBinding := credentialsBinding.DeepCopy()
+				newCredentialsBinding.Name = "new-credentialsbinding"
+				newCredentialsBinding.CredentialsRef.Name = "new-secret"
+
+				Expect(coreInformerFactory.Core().V1beta1().Projects().Informer().GetStore().Add(&project)).To(Succeed())
+				Expect(coreInformerFactory.Core().V1beta1().CloudProfiles().Informer().GetStore().Add(&cloudProfile)).To(Succeed())
+				Expect(coreInformerFactory.Core().V1beta1().Seeds().Informer().GetStore().Add(&seed)).To(Succeed())
+				Expect(securityInformerFactory.Security().V1alpha1().CredentialsBindings().Informer().GetStore().Add(&credentialsBinding)).To(Succeed())
+				Expect(securityInformerFactory.Security().V1alpha1().CredentialsBindings().Informer().GetStore().Add(newCredentialsBinding)).To(Succeed())
+			})
+
+			It("should deny the change if user has no permissions to read old credentials", func() {
+				authorizeAttributes := authorizer.AttributesRecord{
+					User:            userInfo,
+					APIGroup:        "",
+					APIVersion:      "v1",
+					Resource:        "secrets",
+					Namespace:       shoot.Namespace,
+					Name:            "secret1",
+					Verb:            "get",
+					ResourceRequest: true,
+				}
+
+				auth.EXPECT().Authorize(ctx, authorizeAttributes).Return(authorizer.DecisionDeny, "", nil)
+
+				attrs := admission.NewAttributesRecord(&shoot, oldShoot, core.Kind("Shoot").WithVersion("version"), shoot.Namespace, shoot.Name, core.Resource("shoots").WithVersion("version"), "", admission.Update, &metav1.UpdateOptions{}, false, userInfo)
+				err := admissionHandler.Admit(ctx, attrs, nil)
+				Expect(err).To(BeForbiddenError())
+				Expect(err).To(MatchError(ContainSubstring("user %q is not allowed to read the previously referenced Secret %q", userInfo.Name, shoot.Namespace+"/secret1")))
+			})
+
+			It("should deny the change if user has no permissions to read new credentials", func() {
+				oldAuthorizeAttributes := authorizer.AttributesRecord{
+					User:            userInfo,
+					APIGroup:        "",
+					APIVersion:      "v1",
+					Resource:        "secrets",
+					Namespace:       shoot.Namespace,
+					Name:            "secret1",
+					Verb:            "get",
+					ResourceRequest: true,
+				}
+				auth.EXPECT().Authorize(ctx, oldAuthorizeAttributes).Return(authorizer.DecisionAllow, "", nil)
+
+				newAuthorizeAttributes := authorizer.AttributesRecord{
+					User:            userInfo,
+					APIGroup:        "",
+					APIVersion:      "v1",
+					Resource:        "secrets",
+					Namespace:       shoot.Namespace,
+					Name:            "new-secret",
+					Verb:            "get",
+					ResourceRequest: true,
+				}
+				auth.EXPECT().Authorize(ctx, newAuthorizeAttributes).Return(authorizer.DecisionDeny, "", nil)
+
+				attrs := admission.NewAttributesRecord(&shoot, oldShoot, core.Kind("Shoot").WithVersion("version"), shoot.Namespace, shoot.Name, core.Resource("shoots").WithVersion("version"), "", admission.Update, &metav1.UpdateOptions{}, false, userInfo)
+				err := admissionHandler.Admit(ctx, attrs, nil)
+				Expect(err).To(BeForbiddenError())
+				Expect(err).To(MatchError(ContainSubstring("user %q is not allowed to read the newly referenced Secret %q", userInfo.Name, shoot.Namespace+"/new-secret")))
+			})
+
+			It("should allow the change if user has permissions to read both old and new credentials", func() {
+				oldAuthorizeAttributes := authorizer.AttributesRecord{
+					User:            userInfo,
+					APIGroup:        "",
+					APIVersion:      "v1",
+					Resource:        "secrets",
+					Namespace:       shoot.Namespace,
+					Name:            "secret1",
+					Verb:            "get",
+					ResourceRequest: true,
+				}
+				auth.EXPECT().Authorize(ctx, oldAuthorizeAttributes).Return(authorizer.DecisionAllow, "", nil)
+
+				newAuthorizeAttributes := authorizer.AttributesRecord{
+					User:            userInfo,
+					APIGroup:        "",
+					APIVersion:      "v1",
+					Resource:        "secrets",
+					Namespace:       shoot.Namespace,
+					Name:            "new-secret",
+					Verb:            "get",
+					ResourceRequest: true,
+				}
+				auth.EXPECT().Authorize(ctx, newAuthorizeAttributes).Return(authorizer.DecisionAllow, "", nil)
+
+				attrs := admission.NewAttributesRecord(&shoot, oldShoot, core.Kind("Shoot").WithVersion("version"), shoot.Namespace, shoot.Name, core.Resource("shoots").WithVersion("version"), "", admission.Update, &metav1.UpdateOptions{}, false, userInfo)
+				Expect(admissionHandler.Admit(ctx, attrs, nil)).To(Succeed())
 			})
 		})
 
@@ -1884,6 +2076,55 @@ var _ = Describe("validator", func() {
 				})
 			})
 
+			Context("oidc config check", func() {
+				BeforeEach(func() {
+					shoot.Spec.Kubernetes.KubeAPIServer = &core.KubeAPIServerConfig{}
+				})
+
+				DescribeTable("validate oidc config on shoot create", func(clientID, issuerURL *string, errorMatcher types.GomegaMatcher) {
+					shoot.Spec.Kubernetes.KubeAPIServer.OIDCConfig = &core.OIDCConfig{
+						ClientID:  clientID,
+						IssuerURL: issuerURL,
+					}
+
+					Expect(coreInformerFactory.Core().V1beta1().Projects().Informer().GetStore().Add(&project)).To(Succeed())
+					Expect(coreInformerFactory.Core().V1beta1().CloudProfiles().Informer().GetStore().Add(&cloudProfile)).To(Succeed())
+					Expect(coreInformerFactory.Core().V1beta1().Seeds().Informer().GetStore().Add(&seed)).To(Succeed())
+					Expect(coreInformerFactory.Core().V1beta1().SecretBindings().Informer().GetStore().Add(&secretBinding)).To(Succeed())
+					Expect(securityInformerFactory.Security().V1alpha1().CredentialsBindings().Informer().GetStore().Add(&credentialsBinding)).To(Succeed())
+
+					attrs := admission.NewAttributesRecord(&shoot, nil, core.Kind("Shoot").WithVersion("version"), shoot.Namespace, shoot.Name, core.Resource("shoots").WithVersion("version"), "", admission.Create, &metav1.CreateOptions{}, false, nil)
+					err := admissionHandler.Admit(ctx, attrs, nil)
+
+					Expect(err).To(errorMatcher)
+				},
+					Entry("should allow when oidcConfig is valid", ptr.To("someClientID"), ptr.To("https://issuer.com"), BeNil()),
+					Entry("should forbid when oidcConfig clientID is nil", nil, ptr.To("https://issuer.com"), BeForbiddenError()),
+					Entry("should forbid when oidcConfig clientID is empty string", ptr.To(""), ptr.To("https://issuer.com"), BeForbiddenError()),
+					Entry("should forbid when oidcConfig issuerURL is nil", ptr.To("someClientID"), nil, BeForbiddenError()),
+					Entry("should forbid when oidcConfig issuerURL is empty string", ptr.To("someClientID"), ptr.To(""), BeForbiddenError()),
+				)
+
+				DescribeTable("do not validate oidc config when operation is not create", func(admissionOperation admission.Operation, operationOptions runtime.Object) {
+					oldShoot := shoot.DeepCopy()
+					shoot.Spec.Kubernetes.KubeAPIServer.OIDCConfig = &core.OIDCConfig{}
+
+					Expect(coreInformerFactory.Core().V1beta1().Projects().Informer().GetStore().Add(&project)).To(Succeed())
+					Expect(coreInformerFactory.Core().V1beta1().CloudProfiles().Informer().GetStore().Add(&cloudProfile)).To(Succeed())
+					Expect(coreInformerFactory.Core().V1beta1().Seeds().Informer().GetStore().Add(&seed)).To(Succeed())
+					Expect(coreInformerFactory.Core().V1beta1().SecretBindings().Informer().GetStore().Add(&secretBinding)).To(Succeed())
+					Expect(securityInformerFactory.Security().V1alpha1().CredentialsBindings().Informer().GetStore().Add(&credentialsBinding)).To(Succeed())
+
+					attrs := admission.NewAttributesRecord(&shoot, oldShoot, core.Kind("Shoot").WithVersion("version"), shoot.Namespace, shoot.Name, core.Resource("shoots").WithVersion("version"), "", admissionOperation, operationOptions, false, nil)
+					err := admissionHandler.Admit(ctx, attrs, nil)
+
+					Expect(err).ToNot(HaveOccurred())
+				},
+					Entry("should allow invalid oidcConfig on shoot update", admission.Update, &metav1.UpdateOptions{}),
+					Entry("should allow invalid oidcConfig on shoot delete", admission.Delete, &metav1.DeleteOptions{}),
+				)
+			})
+
 			Context("networking settings checks", func() {
 				var (
 					oldShoot *core.Shoot
@@ -2301,7 +2542,7 @@ var _ = Describe("validator", func() {
 				})
 			})
 
-			Context("kubernetes version checks", func() {
+			Context("kubernetes version checks against CloudProfile", func() {
 				var (
 					highestSupportedVersion    gardencorev1beta1.ExpirableVersion
 					highestSupported126Release gardencorev1beta1.ExpirableVersion
@@ -2576,6 +2817,53 @@ var _ = Describe("validator", func() {
 					err := admissionHandler.Admit(ctx, attrs, nil)
 
 					Expect(err).ToNot(HaveOccurred())
+				})
+			})
+
+			Context("kubernetes version checks against NamespacedCloudProfile", func() {
+				var (
+					expiredVersion gardencorev1beta1.ExpirableVersion
+				)
+
+				BeforeEach(func() {
+					shoot.Spec.CloudProfileName = nil
+					shoot.Spec.CloudProfile = &core.CloudProfileReference{
+						Kind: "NamespacedCloudProfile",
+						Name: namespacedCloudProfile.Name,
+					}
+
+					expiredVersion = gardencorev1beta1.ExpirableVersion{Version: "1.26.8", Classification: ptr.To(gardencorev1beta1.ClassificationDeprecated), ExpirationDate: &metav1.Time{Time: metav1.Now().Add(time.Second * -1000)}}
+
+					cloudProfile.Spec.Kubernetes.Versions = []gardencorev1beta1.ExpirableVersion{
+						expiredVersion,
+					}
+
+					Expect(coreInformerFactory.Core().V1beta1().Projects().Informer().GetStore().Add(&project)).To(Succeed())
+					Expect(coreInformerFactory.Core().V1beta1().Seeds().Informer().GetStore().Add(&seed)).To(Succeed())
+					Expect(coreInformerFactory.Core().V1beta1().SecretBindings().Informer().GetStore().Add(&secretBinding)).To(Succeed())
+					Expect(securityInformerFactory.Security().V1alpha1().CredentialsBindings().Informer().GetStore().Add(&credentialsBinding)).To(Succeed())
+					Expect(coreInformerFactory.Core().V1beta1().CloudProfiles().Informer().GetStore().Add(&cloudProfile)).To(Succeed())
+				})
+
+				It("should not allow to create a cluster with an outdated extended Kubernetes version", func() {
+					namespacedCloudProfile.Status.CloudProfileSpec.Kubernetes = (cloudProfile.DeepCopy()).Spec.Kubernetes
+					Expect(coreInformerFactory.Core().V1beta1().NamespacedCloudProfiles().Informer().GetStore().Add(&namespacedCloudProfile)).To(Succeed())
+
+					shoot.Spec.Kubernetes.Version = expiredVersion.Version
+
+					attrs := admission.NewAttributesRecord(&shoot, nil, core.Kind("Shoot").WithVersion("version"), shoot.Namespace, shoot.Name, core.Resource("shoots").WithVersion("version"), "", admission.Create, &metav1.CreateOptions{}, false, userInfo)
+					Expect(admissionHandler.Admit(ctx, attrs, nil)).To(MatchError(And(ContainSubstring("Unsupported value"), ContainSubstring("1.26.8"))))
+				})
+
+				It("should allow to create a cluster with an extended Kubernetes version", func() {
+					namespacedCloudProfile.Status.CloudProfileSpec.Kubernetes = (cloudProfile.DeepCopy()).Spec.Kubernetes
+					namespacedCloudProfile.Status.CloudProfileSpec.Kubernetes.Versions[0].ExpirationDate = ptr.To(metav1.Time{Time: time.Now().Add(48 * time.Hour)})
+					Expect(coreInformerFactory.Core().V1beta1().NamespacedCloudProfiles().Informer().GetStore().Add(&namespacedCloudProfile)).To(Succeed())
+
+					shoot.Spec.Kubernetes.Version = expiredVersion.Version
+
+					attrs := admission.NewAttributesRecord(&shoot, nil, core.Kind("Shoot").WithVersion("version"), shoot.Namespace, shoot.Name, core.Resource("shoots").WithVersion("version"), "", admission.Create, &metav1.CreateOptions{}, false, userInfo)
+					Expect(admissionHandler.Admit(ctx, attrs, nil)).To(Succeed())
 				})
 			})
 
@@ -4868,15 +5156,14 @@ var _ = Describe("validator", func() {
 					Expect(err.Error()).To(ContainSubstring(fmt.Sprintf("backup is not configured for old seed %q", seedName)))
 				})
 
-				It("should reject update of binding, because cloud provider for new Seed is not equal to cloud provider for old Seed", func() {
+				It("should allow update of binding to Seed with different provider type", func() {
 					seed.Spec.Provider.Type = "gcp"
 					newSeed.Spec.Provider.Type = "aws"
 
 					attrs := admission.NewAttributesRecord(&shoot, &oldShoot, core.Kind("Shoot").WithVersion("version"), shoot.Namespace, shoot.Name, core.Resource("shoots").WithVersion("version"), "binding", admission.Update, &metav1.UpdateOptions{}, false, nil)
 					err := admissionHandler.Admit(context.TODO(), attrs, nil)
 
-					Expect(err).To(BeForbiddenError())
-					Expect(err.Error()).To(ContainSubstring("cannot change seed because cloud provider for new seed (%s) is not equal to cloud provider for old seed (%s)", newSeed.Spec.Provider.Type, seed.Spec.Provider.Type))
+					Expect(err).NotTo(HaveOccurred())
 				})
 			})
 

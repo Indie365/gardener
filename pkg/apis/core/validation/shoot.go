@@ -56,8 +56,8 @@ var (
 		core.KubernetesDashboardAuthModeToken,
 	)
 	availableNginxIngressExternalTrafficPolicies = sets.New(
-		string(corev1.ServiceExternalTrafficPolicyTypeCluster),
-		string(corev1.ServiceExternalTrafficPolicyTypeLocal),
+		string(corev1.ServiceExternalTrafficPolicyCluster),
+		string(corev1.ServiceExternalTrafficPolicyLocal),
 	)
 	availableShootOperations = sets.New(
 		v1beta1constants.ShootOperationMaintain,
@@ -321,14 +321,17 @@ func ValidateShootSpecUpdate(newSpec, oldSpec *core.ShootSpec, newObjectMeta met
 
 	allErrs = append(allErrs, apivalidation.ValidateImmutableField(newSpec.Region, oldSpec.Region, fldPath.Child("region"))...)
 	allErrs = append(allErrs, ValidateCloudProfileReference(newSpec.CloudProfile, oldSpec.CloudProfile, newSpec.CloudProfileName, oldSpec.CloudProfileName, fldPath.Child("cloudProfile"))...)
+
+	if oldSpec.CredentialsBindingName != nil && len(ptr.Deref(newSpec.CredentialsBindingName, "")) == 0 {
+		allErrs = append(allErrs, field.Forbidden(fldPath.Child("credentialsBindingName"), "the field cannot be unset"))
+	}
+
 	// allow removing the value of SecretBindingName when
 	// old secret binding existed, but new is set to nil
 	// and new credentials binding also exists
 	migrationFromSecBindingToCredBinding := oldSpec.SecretBindingName != nil && newSpec.SecretBindingName == nil && len(ptr.Deref(newSpec.CredentialsBindingName, "")) > 0
-	migrationFromCredBindingToSecBinding := oldSpec.CredentialsBindingName != nil && newSpec.CredentialsBindingName == nil && len(ptr.Deref(newSpec.SecretBindingName, "")) > 0
-	if !migrationFromSecBindingToCredBinding && !migrationFromCredBindingToSecBinding {
+	if !migrationFromSecBindingToCredBinding {
 		allErrs = append(allErrs, apivalidation.ValidateImmutableField(newSpec.SecretBindingName, oldSpec.SecretBindingName, fldPath.Child("secretBindingName"))...)
-		allErrs = append(allErrs, apivalidation.ValidateImmutableField(newSpec.CredentialsBindingName, oldSpec.CredentialsBindingName, fldPath.Child("credentialsBindingName"))...)
 	}
 	allErrs = append(allErrs, apivalidation.ValidateImmutableField(newSpec.ExposureClassName, oldSpec.ExposureClassName, fldPath.Child("exposureClassName"))...)
 
@@ -1322,6 +1325,11 @@ func ValidateKubeAPIServer(kubeAPIServer *core.KubeAPIServerConfig, version stri
 				allErrs = append(allErrs, field.Invalid(oidcPath.Child("caBundle"), *oidc.CABundle, "caBundle is not a valid PEM-encoded certificate"))
 			}
 		}
+		// TODO(AleksandarSavchev): Remove this check as soon as v1.31 is the least supported Kubernetes version in Gardener.
+		k8sGreaterEqual131, _ := versionutils.CheckVersionMeetsConstraint(version, ">= 1.31")
+		if oidc.ClientAuthentication != nil && k8sGreaterEqual131 {
+			allErrs = append(allErrs, field.Invalid(oidcPath.Child("clientAuthentication"), *oidc.ClientAuthentication, "for Kubernetes versions >= 1.31, clientAuthentication field is no longer supported"))
+		}
 		if oidc.GroupsClaim != nil && len(*oidc.GroupsClaim) == 0 {
 			allErrs = append(allErrs, field.Invalid(oidcPath.Child("groupsClaim"), *oidc.GroupsClaim, "groupsClaim cannot be empty when key is provided"))
 		}
@@ -1348,6 +1356,23 @@ func ValidateKubeAPIServer(kubeAPIServer *core.KubeAPIServerConfig, version stri
 		auditPath := fldPath.Child("auditConfig")
 		if auditPolicy := auditConfig.AuditPolicy; auditPolicy != nil && auditConfig.AuditPolicy.ConfigMapRef != nil {
 			allErrs = append(allErrs, ValidateAuditPolicyConfigMapReference(auditPolicy.ConfigMapRef, auditPath.Child("auditPolicy", "configMapRef"))...)
+		}
+	}
+
+	k8sLess130, _ := versionutils.CheckVersionMeetsConstraint(version, "< 1.30")
+	if structuredAuthentication := kubeAPIServer.StructuredAuthentication; structuredAuthentication != nil {
+		structAuthPath := fldPath.Child("structuredAuthentication")
+		if k8sLess130 {
+			allErrs = append(allErrs, field.Forbidden(structAuthPath, "is available for Kubernetes versions >= v1.30"))
+		}
+		if value, ok := kubeAPIServer.FeatureGates["StructuredAuthenticationConfiguration"]; ok && !value {
+			allErrs = append(allErrs, field.Forbidden(structAuthPath, "requires feature gate StructuredAuthenticationConfiguration to be enabled"))
+		}
+		if kubeAPIServer.OIDCConfig != nil {
+			allErrs = append(allErrs, field.Forbidden(fldPath.Child("oidcConfig"), "is incompatible with structuredAuthentication"))
+		}
+		if len(structuredAuthentication.ConfigMapName) == 0 {
+			allErrs = append(allErrs, field.Forbidden(structAuthPath.Child("configMapName"), "must provide a name"))
 		}
 	}
 
@@ -1819,6 +1844,10 @@ func ValidateKubeletConfig(kubeletConfig core.KubeletConfig, version string, fld
 	}
 	if kubeletConfig.SystemReserved != nil {
 		allErrs = append(allErrs, validateKubeletConfigReserved(kubeletConfig.SystemReserved, fldPath.Child("systemReserved"))...)
+
+		if k8sGreaterEqual131, _ := versionutils.CheckVersionMeetsConstraint(version, ">= 1.31"); k8sGreaterEqual131 {
+			allErrs = append(allErrs, field.Invalid(fldPath.Child("systemReserved"), kubeletConfig.SystemReserved, "systemReserved is no longer supported by Gardener starting from Kubernetes 1.31"))
+		}
 	}
 	if v := kubeletConfig.ImageGCHighThresholdPercent; v != nil && (*v < 0 || *v > 100) {
 		allErrs = append(allErrs, field.Invalid(fldPath.Child("imageGCHighThresholdPercent"), *v, "value must be in [0,100]"))
