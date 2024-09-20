@@ -56,11 +56,11 @@ require (
 	google.golang.org/protobuf v1.34.2
 	gopkg.in/yaml.v3 v3.0.1
 	helm.sh/helm/v3 v3.14.4
-	istio.io/api v1.22.5
-	istio.io/client-go v1.22.0
-	k8s.io/api v0.29.9
+	istio.io/api v1.23.1
+	istio.io/client-go v1.23.1
+	k8s.io/api v0.30.0
 	k8s.io/apiextensions-apiserver v0.29.9
-	k8s.io/apimachinery v0.29.9
+	k8s.io/apimachinery v0.30.0
 	k8s.io/apiserver v0.29.9
 	k8s.io/autoscaler/vertical-pod-autoscaler v1.2.1
 	k8s.io/client-go v0.29.9
@@ -70,7 +70,7 @@ require (
 	k8s.io/component-helpers v0.29.9
 	k8s.io/klog/v2 v2.120.1
 	k8s.io/kube-aggregator v0.29.9
-	k8s.io/kube-openapi v0.0.0-20231010175941-2dd684a91f00
+	k8s.io/kube-openapi v0.0.0-20240228011516-70dd3763d340
 	k8s.io/kube-proxy v0.29.9
 	k8s.io/kube-state-metrics/v2 v2.11.0
 	k8s.io/kubelet v0.29.9
@@ -240,14 +240,15 @@ require (
 	golang.org/x/sys v0.25.0 // indirect
 	golang.org/x/term v0.24.0 // indirect
 	google.golang.org/genproto v0.0.0-20240213162025-012b6fc9bca9 // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20240318140521-94a12d6c2237 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20240314234333-6e1732d8331c // indirect
-	google.golang.org/grpc v1.62.1 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20240513163218-0867130af1f8 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20240513163218-0867130af1f8 // indirect
+	google.golang.org/grpc v1.64.1 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	k8s.io/gengo v0.0.0-20230829151522-9cce18d56c01 // indirect
+	k8s.io/gengo/v2 v2.0.0-20240228010128-51d4e06bde70 // indirect
 	k8s.io/klog v1.0.0 // indirect
 	k8s.io/kms v0.29.9 // indirect
 	k8s.io/sample-controller v0.28.4 // indirect
