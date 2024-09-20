@@ -175,7 +175,7 @@ func defaultGarden(backupSecret, certManagementRootCA *corev1.Secret) *operatorv
 					},
 				},
 				Kubernetes: operatorv1alpha1.Kubernetes{
-					Version: "1.27.1",
+					Version: "1.30.0",
 				},
 				Maintenance: operatorv1alpha1.Maintenance{
 					TimeWindow: gardencorev1beta1.MaintenanceTimeWindow{
