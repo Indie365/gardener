@@ -24,9 +24,9 @@ import (
 	"github.com/gardener/gardener/pkg/client/kubernetes"
 	"github.com/gardener/gardener/pkg/client/kubernetes/clientmap"
 	"github.com/gardener/gardener/pkg/controllerutils/mapper"
-	predicateutils "github.com/gardener/gardener/pkg/controllerutils/predicate"
 	"github.com/gardener/gardener/pkg/operator/controller/extension/admission"
 	"github.com/gardener/gardener/pkg/operator/controller/extension/controllerregistration"
+	"github.com/gardener/gardener/pkg/operator/controller/extension/runtime"
 	operatorpredicate "github.com/gardener/gardener/pkg/operator/predicate"
 	"github.com/gardener/gardener/pkg/utils/oci"
 )
@@ -71,7 +71,8 @@ func (r *Reconciler) AddToManager(ctx context.Context, mgr manager.Manager, gard
 	r.GardenClientMap = gardenClientMap
 
 	r.admission = admission.New(r.RuntimeClientSet, r.Recorder, r.GardenNamespace, r.HelmRegistry)
-	r.controllerRegistration = controllerregistration.New(r.Recorder)
+	r.controllerRegistration = controllerregistration.New(r.RuntimeClientSet.Client(), r.Recorder, r.GardenNamespace)
+	r.runtime = runtime.New(r.RuntimeClientSet, r.Recorder, r.GardenNamespace, r.HelmRegistry)
 
 	return builder.
 		ControllerManagedBy(mgr).
@@ -83,7 +84,10 @@ func (r *Reconciler) AddToManager(ctx context.Context, mgr manager.Manager, gard
 		Watches(
 			&operatorv1alpha1.Garden{},
 			mapper.EnqueueRequestsFrom(ctx, mgr.GetCache(), mapper.MapFunc(r.MapToAllExtensions), mapper.UpdateWithNew, mgr.GetLogger()),
-			builder.WithPredicates(predicate.Or(operatorpredicate.GardenCreatedOrReconciledSuccessfully(), predicateutils.ForEventTypes(predicateutils.Delete))),
+			builder.WithPredicates(predicate.Or(
+				operatorpredicate.GardenCreatedOrReconciledSuccessfully(),
+				operatorpredicate.GardenDeletionTriggered(),
+			)),
 		).
 		Complete(r)
 }
