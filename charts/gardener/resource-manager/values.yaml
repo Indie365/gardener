@@ -78,7 +78,7 @@ global:
       health:
         concurrentSyncs: 5
         syncPeriod: 1m
-      kubeletCSRApprover:
+      csrApprover:
         enabled: false
       # concurrentSyncs: 1
       # machineNamespace: shoot--foo--bar
@@ -144,3 +144,6 @@ global:
       #   tolerationSeconds: 300
       tokenInvalidator:
         enabled: false
+      nodeAgentAuthorizer:
+        enabled: false
+      # machineNamespace: shoot--foo--bar

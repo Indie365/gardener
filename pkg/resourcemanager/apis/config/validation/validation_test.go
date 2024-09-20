@@ -174,13 +174,13 @@ var _ = Describe("Validation", func() {
 
 			Context("kubelet csr approver", func() {
 				It("should return errors because concurrent syncs are <= 0", func() {
-					conf.Controllers.KubeletCSRApprover.Enabled = true
-					conf.Controllers.KubeletCSRApprover.ConcurrentSyncs = ptr.To(0)
+					conf.Controllers.CSRApprover.Enabled = true
+					conf.Controllers.CSRApprover.ConcurrentSyncs = ptr.To(0)
 
 					Expect(ValidateResourceManagerConfiguration(conf)).To(ConsistOf(
 						PointTo(MatchFields(IgnoreExtras, Fields{
 							"Type":  Equal(field.ErrorTypeInvalid),
-							"Field": Equal("controllers.kubeletCSRApprover.concurrentSyncs"),
+							"Field": Equal("controllers.csrApprover.concurrentSyncs"),
 						})),
 					))
 				})
@@ -418,6 +418,27 @@ var _ = Describe("Validation", func() {
 						PointTo(MatchFields(IgnoreExtras, Fields{
 							"Type":  Equal(field.ErrorTypeInvalid),
 							"Field": Equal("webhooks.highAvailabilityConfig.defaultUnreachableTolerationSeconds"),
+						})),
+					))
+				})
+			})
+
+			Context("node agent authorizer", func() {
+				It("should succeed with a valid machine namespace", func() {
+					conf.Webhooks.NodeAgentAuthorizer.Enabled = true
+					conf.Webhooks.NodeAgentAuthorizer.MachineNamespace = "foo-namespace"
+
+					Expect(ValidateResourceManagerConfiguration(conf)).To(BeEmpty())
+				})
+
+				It("should return errors when machine namespace is empty", func() {
+					conf.Webhooks.NodeAgentAuthorizer.Enabled = true
+					conf.Webhooks.NodeAgentAuthorizer.MachineNamespace = ""
+
+					Expect(ValidateResourceManagerConfiguration(conf)).To(ConsistOf(
+						PointTo(MatchFields(IgnoreExtras, Fields{
+							"Type":  Equal(field.ErrorTypeRequired),
+							"Field": Equal("webhooks.nodeAgentAuthorizer.machineNamespace"),
 						})),
 					))
 				})

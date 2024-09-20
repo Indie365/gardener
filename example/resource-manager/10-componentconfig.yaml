@@ -42,7 +42,7 @@ controllers:
   health:
     concurrentSyncs: 5
     syncPeriod: 1m
-  kubeletCSRApprover:
+  csrApprover:
     enabled: true
     concurrentSyncs: 1
     machineNamespace: shoot--foo--bar
@@ -114,3 +114,6 @@ webhooks:
   #   tolerationSeconds: 300
   tokenInvalidator:
     enabled: true
+  nodeAgentAuthorizer:
+    enabled: true
+    machineNamespace: shoot--foo--bar
